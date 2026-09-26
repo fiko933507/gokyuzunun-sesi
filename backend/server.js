@@ -54,7 +54,7 @@ async function speech(profile, text = VOICES[profile].text, cacheKey = 'preview:
   if (!/^[A-Za-z0-9]{20}$/.test(voice.id)) throw Object.assign(new Error('Invalid voice ID configuration'), { status: 503 });
   const today = new Date().toISOString().slice(0, 10);
   if (today !== currentDay) { currentDay = today; generatedToday = 0; }
-  if (generatedToday >= 24) throw Object.assign(new Error('Daily voice-generation limit reached'), { status: 429 });
+  if (generatedToday >= 12) throw Object.assign(new Error('Daily voice-generation limit reached'), { status: 429 });
   generatedToday++;
   const promise = (async () => {
     const controller = new AbortController();
