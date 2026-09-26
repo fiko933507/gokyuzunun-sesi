@@ -35,3 +35,11 @@ test('rejects arbitrary profile and does not call provider', async () => {
   });
   assert.equal(res.status, 400);
 });
+
+test('restricted narration rejects caller supplied arbitrary text', async () => {
+  const res=await fetch((await url())+'/api/narration',{
+    method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({profile:'weather',latitude:'41',longitude:29,text:'injected speech'}),
+  });
+  assert.equal(res.status,400);
+});
