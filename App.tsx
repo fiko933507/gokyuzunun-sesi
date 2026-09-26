@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as Location from 'expo-location';
-import * as Notifications from 'expo-notifications';
 import * as Speech from 'expo-speech';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -18,7 +17,6 @@ type Weather = {
   current: { temperature_2m: number; weather_code: number };
 };
 const SETTINGS_KEY = 'gokyuzu.settings.v1';
-const IDS_KEY = 'gokyuzu.notificationIds.v1';
 const color = '#233F65';
 const sky = '#EAF5FF';
 
@@ -66,11 +64,6 @@ export default function App() {
         setAstro(Boolean(saved.astro));
       }
     }).catch(() => {});
-    const sub = Notifications.addNotificationResponseReceivedListener(response => {
-      const body = response.notification.request.content.body;
-      if (body) Speech.speak(body, { language: 'tr-TR', rate: 0.92 });
-    });
-    return () => sub.remove();
   }, []);
 
   const refresh = useCallback(async (): Promise<Weather | null> => {
@@ -113,31 +106,11 @@ export default function App() {
       Alert.alert('Geçersiz saat', 'Saati 00:00 ile 23:59 arasında gir.');
       return;
     }
-    const w = await refresh();
-    if (!w) return;
     try {
-      const permission = await Notifications.requestPermissionsAsync();
-      if (!permission.granted) {
-        Alert.alert('Bildirim izni gerekli', 'Sesli özeti açmak için bildirim izni ver.');
-        return;
-      }
-      const previous = JSON.parse(await AsyncStorage.getItem(IDS_KEY) || '[]') as string[];
-      for (const id of previous) await Notifications.cancelScheduledNotificationAsync(id);
-      const ids: string[] = [];
-      for (let index = 0; index < Math.min(3, w.daily.time.length); index++) {
-        const date = new Date(w.daily.time[index] + 'T00:00:00');
-        date.setHours(h, m, 0, 0);
-        if (date <= new Date()) continue;
-        const id = await Notifications.scheduleNotificationAsync({
-          content: { title: 'Gökyüzünün Sesi', body: briefing(w, index), data: { day: w.daily.time[index] } },
-          trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date },
-        });
-        ids.push(id);
-      }
-      await AsyncStorage.multiSet([[IDS_KEY, JSON.stringify(ids)], [SETTINGS_KEY, JSON.stringify({ hour, minute, astro })]]);
-      Alert.alert('Uyarılar hazır', ids.length ? `Önümüzdeki ${ids.length} gün için ${hour.padStart(2, '0')}:${minute.padStart(2, '0')} uyarısı ayarlandı. Bildirime dokununca sesli okunur.` : 'Bugünkü saat geçti. Yarın için uygulamayı tekrar açıp uyarıları yenile.');
+      await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify({ hour, minute, astro }));
+      Alert.alert('Tercihin kaydedildi', 'Seçtiğin saat kaydedildi. Expo Go sürümünde otomatik bildirim henüz çalışmıyor; hava özetini ana ekrandan sesli dinleyebilirsin.');
     } catch {
-      Alert.alert('Uyarı kurulamadı', 'Bildirim ayarlarını kontrol edip tekrar dene.');
+      Alert.alert('Kaydedilemedi', 'Saat tercihini tekrar kaydetmeyi dene.');
     }
   }
 
@@ -171,7 +144,7 @@ export default function App() {
         {weather?.daily.time.slice(1, 4).map((day, i) => <View style={styles.forecast} key={day}><Text style={styles.forecastDay}>{dayLabel(day)}</Text><Text style={styles.body}>{Math.round(weather.daily.temperature_2m_min[i + 1])}° / {Math.round(weather.daily.temperature_2m_max[i + 1])}° · Yağış %{weather.daily.precipitation_probability_max[i + 1]}</Text></View>)}
       </>}
       {tab === 'sky' && <View style={styles.card}><Text style={styles.cardTitle}>Göğün hikâyesi</Text><Text style={styles.body}>Bu bölümde astronomik olaylar ve isteğe bağlı astroloji yorumları yer alacak. İlk prototipte doğrulanmamış gezegen konumu veya kişisel yorum gösterilmiyor.</Text><View style={styles.row}><Text style={styles.rowLabel}>Astroloji yorumlarını aç</Text><Switch value={astro} onValueChange={setAstro} /></View>{astro && <Text style={styles.note}>Tercihin kaydedilmesi için Saatim bölümündeki “Uyarıları yenile” düğmesine bas. Yorum içeriği henüz hazır değil.</Text>}</View>}
-      {tab === 'settings' && <View style={styles.card}><Text style={styles.cardTitle}>Uyarı saatim</Text><Text style={styles.body}>Günlük hava özetinin geleceği saati seç.</Text><View style={styles.timeRow}><TextInput style={styles.input} value={hour} onChangeText={setHour} keyboardType="number-pad" maxLength={2} accessibilityLabel="Saat" /><Text style={styles.colon}>:</Text><TextInput style={styles.input} value={minute} onChangeText={setMinute} keyboardType="number-pad" maxLength={2} accessibilityLabel="Dakika" /></View><Pressable style={styles.button} onPress={() => void schedule()}><Text style={styles.buttonText}>Uyarıları yenile</Text></Pressable><Text style={styles.note}>Uyarı bildirim olarak gelir; dokunduğunda Türkçe sesli okunur. Yeni konuma veya tahmine göre güncellemek için uygulamayı açıp bu düğmeye tekrar bas.</Text></View>}
+      {tab === 'settings' && <View style={styles.card}><Text style={styles.cardTitle}>Uyarı saatim</Text><Text style={styles.body}>Günlük uyarı için tercih ettiğin saati kaydet.</Text><View style={styles.timeRow}><TextInput style={styles.input} value={hour} onChangeText={setHour} keyboardType="number-pad" maxLength={2} accessibilityLabel="Saat" /><Text style={styles.colon}>:</Text><TextInput style={styles.input} value={minute} onChangeText={setMinute} keyboardType="number-pad" maxLength={2} accessibilityLabel="Dakika" /></View><Pressable style={styles.button} onPress={() => void schedule()}><Text style={styles.buttonText}>Saati kaydet</Text></Pressable><Text style={styles.note}>Expo Go içinde otomatik bildirimler kullanılamıyor. Bu özellik Android geliştirme sürümünde eklenecek. Şimdilik hava özetini ana ekranda sesli dinleyebilirsin.</Text></View>}
       <Text style={styles.footer}>Hava tahmini: Open-Meteo · Astroloji yorumu hava tahmini değildir.</Text>
     </ScrollView>
   </View>;
