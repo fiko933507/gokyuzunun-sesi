@@ -20,7 +20,8 @@
           "locationWhenInUsePermission": "Bulunduğunuz konumun hava tahminini göstermek için konum kullanılır."
         }
       ],
-      "expo-notifications"
+      "expo-notifications",
+      "expo-status-bar"
     ]
   }
 }
