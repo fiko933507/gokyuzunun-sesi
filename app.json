@@ -9,7 +9,8 @@
       "package": "com.gokyuzununsesi.app",
       "permissions": [
         "ACCESS_COARSE_LOCATION",
-        "ACCESS_FINE_LOCATION"
+        "ACCESS_FINE_LOCATION",
+        "POST_NOTIFICATIONS"
       ]
     },
     "plugins": [
@@ -19,7 +20,14 @@
           "locationWhenInUsePermission": "Bulunduğunuz konumun hava tahminini göstermek için konum kullanılır."
         }
       ],
-      "expo-status-bar"
+      "expo-status-bar",
+      [
+        "expo-notifications",
+        {
+          "color": "#E6C38C",
+          "defaultChannel": "sky-daily"
+        }
+      ]
     ]
   }
 }
