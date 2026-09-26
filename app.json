@@ -9,8 +9,7 @@
       "package": "com.gokyuzununsesi.app",
       "permissions": [
         "ACCESS_COARSE_LOCATION",
-        "ACCESS_FINE_LOCATION",
-        "POST_NOTIFICATIONS"
+        "ACCESS_FINE_LOCATION"
       ]
     },
     "plugins": [
@@ -20,7 +19,6 @@
           "locationWhenInUsePermission": "Bulunduğunuz konumun hava tahminini göstermek için konum kullanılır."
         }
       ],
-      "expo-notifications",
       "expo-status-bar"
     ]
   }
