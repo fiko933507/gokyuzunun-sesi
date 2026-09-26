@@ -9,7 +9,7 @@ import { setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from 'expo-au
 import { getVoiceAudio } from './cloudVoice';
 import type { VoiceProfile } from './voiceConfig';
 import { skyAt, symbolicReading } from './astronomy';
-import { MoonDisc, SkyAtmosphere, ZodiacWheel } from './CelestialVisuals';
+import { MoonDisc, SkyAtmosphere, SunDisc, ZodiacWheel } from './CelestialVisuals';
 import { dailyNotificationEnabled, setDailyNotification, stopDailyNotification } from './notifications';
 
 type Place = { name: string; latitude: number; longitude: number };
@@ -204,7 +204,7 @@ function Root(){
       <Text style={{fontSize:11,color:p.accent,letterSpacing:2}}>{dark?'YILDIZLI GECE':'GÜNE MERHABA'}</Text>
     </View>
     <View style={{alignItems:'center',marginVertical:3}}>
-      <MoonDisc night={dark} phaseName={astronomy.phaseName} illuminated={astronomy.illuminated} size={158}/>
+      {dark?<MoonDisc night={true} phaseName={astronomy.phaseName} illuminated={astronomy.illuminated} size={158}/>:<SunDisc size={158}/>}
     </View>
     <View style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center',gap:10}}>
       <View style={{flex:1}}>{txt('📍 '+(place?.name||'Konum belirleniyor'),14,true)}{txt(dark?'Gökyüzüne bir dilek bırak.':'Işığın yolunu takip et.',12,false,true)}</View>
@@ -212,6 +212,7 @@ function Root(){
     </View>
     <Text style={{textAlign:'center',color:p.accent,marginTop:10,fontSize:11}}>✧  ✦  ✧</Text>
    </View>
+   {!dark&&panel(<View style={{flexDirection:'row',alignItems:'center',gap:10}}><MoonDisc night={false} phaseName={astronomy.phaseName} illuminated={astronomy.illuminated} size={82}/><View style={{flex:1}}>{txt('Ayın Evresi',16,true)}{txt(astronomy.phaseName,20,true)}{txt('%'+astronomy.illuminated+' aydınlık',12,false,true)}{button('Ay ayrıntıları  ›',()=>setScreen('sky'),true)}</View></View>,{marginTop:15})}
    {panel(<>{txt('☾ Gökyüzü takvimi',21,true)}{txt('Bugünün hesaplanan gök cisimleri',12,false,true)}<View style={styles.planetStrip}>{astronomy.bodies.slice(1,6).map(body=><Pressable key={body.name} accessibilityRole="button" onPress={()=>{setSelectedPlanet(body.name);setScreen('sky');}} style={styles.miniPlanet}><Text style={{fontSize:24}}>{body.icon}</Text>{txt(body.name,12,true)}{txt(body.sign,11,false,true)}</Pressable>)}</View>{button('Tüm gezegenleri incele ›',()=>setScreen('sky'),true)}</>,{marginTop:15})}
    {panel(<>
      {txt('✧ Senin Burcun',21,true)}
@@ -232,7 +233,7 @@ function Root(){
       <View style={{flex:1}}>{txt(label(current.weather_code),22,true)}{txt('Bugünün en düşük '+num(daily.temperature_2m_min[0])+'° · en yüksek '+num(daily.temperature_2m_max[0])+'°',12,false,true)}</View>
       <Text style={{color:p.text,fontSize:44,fontWeight:'700'}}>{num(current.temperature_2m)}°</Text>
     </View>
-    {button('▶ Hava durumunu dinle',()=>void playVoice('weather'),true)}
+    {button(voiceLoading==='weather'?'⏳ Ses hazırlanıyor…':activeVoice==='weather'?'■ Durdur':'▶ Hava durumunu dinle',()=>void playVoice('weather'),true)}
     {txt('Son güncelleme '+updated,11,false,true)}
    </>,{marginTop:16})}
    {panel(<>
