@@ -27,3 +27,11 @@ test('weather narration uses fetched values and only a constrained label',async(
  assert.match(output.text,/yüzde 62/);
  assert.match(output.text,/Şemsiyeni/);
 });
+test('uses bounded on-device forecast when upstream rate limits the server',async()=>{
+ const input={latitude:36.9,longitude:30.7,place:'Antalya',weatherSnapshot:{temp:22,feels:23,wind:12,code:61,min:18,max:25,rain:70,sunrise:'2026-09-27T06:50',sunset:'2026-09-27T18:52'}};
+ const output=await narration('weather',input,new Date('2026-09-27T07:00:00Z'),async()=>({ok:false,status:429}));
+ assert.match(output.text,/Antalya/);
+ assert.match(output.text,/yüzde 70/);
+ assert.match(output.text,/Şemsiyeni/);
+ await assert.rejects(narration('weather',{...input,weatherSnapshot:{...input.weatherSnapshot,temp:'injected'}},new Date(),async()=>({ok:false,status:429})),{status:503});
+});
