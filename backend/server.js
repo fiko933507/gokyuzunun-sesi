@@ -64,7 +64,18 @@ async function speech(profile) {
         signal: controller.signal,
       });
       if (!upstream.ok) {
-        // Never forward provider error bodies; they could include sensitive account metadata.
+        // Record only the provider HTTP status and a strictly validated machine-readable
+        // error code. Never log the API key, the full provider body, or user text.
+        let providerCode = 'unknown';
+        try {
+          const responseBody = await upstream.json();
+          const rawCode = responseBody?.detail?.status ?? responseBody?.code;
+          if (typeof rawCode === 'string' && /^[a-zA-Z0-9_-]{1,64}$/.test(rawCode)) providerCode = rawCode;
+        } catch {}
+        console.error(JSON.stringify({
+          event: 'elevenlabs_rejected', profile,
+          providerStatus: upstream.status, providerCode,
+        }));
         throw Object.assign(new Error('Speech provider unavailable'), { status: 502 });
       }
       const data = Buffer.from(await upstream.arrayBuffer());
@@ -102,6 +113,12 @@ const server = http.createServer(async (req, res) => {
       return res.end(data);
     } catch (err) {
       const status = [400, 413, 429, 503].includes(err.status) ? err.status : 502;
+      if (status === 502 && err?.message !== 'Speech provider unavailable') {
+        console.error(JSON.stringify({
+          event: 'voice_preview_failed', profile: typeof profile === 'string' ? profile : 'unknown',
+          reason: err?.name === 'AbortError' ? 'timeout' : err?.code === 'UND_ERR_CONNECT_TIMEOUT' ? 'connection_timeout' : 'unexpected',
+        }));
+      }
       return json(res, status, { error: status === 503 ? 'Voice service not configured' : status === 429 ? 'Preview budget reached' : status === 400 ? 'Invalid JSON' : 'Voice could not be generated' });
     }
   }
