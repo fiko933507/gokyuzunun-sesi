@@ -11,7 +11,8 @@ export async function getVoiceProfileStatus():Promise<Record<VoiceProfile,string
  return Object.fromEntries(data.profiles.map(p=>[p.id,p.genderStatus])) as Record<VoiceProfile,string>;
 }
 
-export type VoiceRequest = { profile:'weather';latitude:number;longitude:number;place:string } |
+export type WeatherSnapshot = {temp:number;feels:number;wind:number;code:number;min:number;max:number;rain:number;sunrise:string;sunset:string};
+export type VoiceRequest = { profile:'weather';latitude:number;longitude:number;place:string;weatherSnapshot:WeatherSnapshot } |
  { profile:'astrology'; sign:string };
 function filename(input:VoiceRequest):string {
  const date=new Date().toISOString().slice(0,10);
