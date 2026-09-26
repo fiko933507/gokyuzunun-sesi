@@ -6,13 +6,13 @@ const KEY = process.env.ELEVENLABS_API_KEY;
 const MODEL = 'eleven_multilingual_v2';
 const VOICES = Object.freeze({
   weather: {
-    id: 'TLSC2qq8RlDdm7tETUHz',
+    id: process.env.WEATHER_VOICE_ID || null,
     title: 'Hava durumu',
     text: 'Günaydın. Gökyüzünün Sesi seninle. Bugün gökyüzüne birlikte bakalım. Hava durumunu, günün sıcaklığını ve dışarı çıkarken nelere dikkat etmen gerektiğini sakin bir sesle anlatacağım.',
     settings: { stability: 0.60, similarity_boost: 0.80, style: 0.10, use_speaker_boost: true },
   },
   astrology: {
-    id: 'LYfSi2g3Frvxg50fRl91',
+    id: process.env.ASTROLOGY_VOICE_ID || null,
     title: 'Astroloji',
     text: 'Gökyüzünün Sesi’ne hoş geldin. Ayın ışığına, gezegenlerin konumlarına ve günün sembollerine birlikte göz atalım. Bu anlatı, merakın ve düşüncelerin için sakin bir yolculuk olsun.',
     settings: { stability: 0.52, similarity_boost: 0.78, style: 0.24, use_speaker_boost: true },
@@ -48,11 +48,13 @@ async function speech(profile) {
   if (cache.has(profile)) return cache.get(profile);
   if (pending.has(profile)) return pending.get(profile);
   if (!KEY) throw Object.assign(new Error('ElevenLabs key not configured'), { status: 503 });
+  const voice = VOICES[profile];
+  if (!voice.id) throw Object.assign(new Error('Voice ID not configured'), { status: 503 });
+  if (!/^[A-Za-z0-9]{20}$/.test(voice.id)) throw Object.assign(new Error('Invalid voice ID configuration'), { status: 503 });
   const today = new Date().toISOString().slice(0, 10);
   if (today !== currentDay) { currentDay = today; generatedToday = 0; }
   if (generatedToday >= 24) throw Object.assign(new Error('Preview budget reached'), { status: 429 });
   generatedToday++;
-  const voice = VOICES[profile];
   const promise = (async () => {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 35_000);
@@ -95,10 +97,10 @@ async function speech(profile) {
 const server = http.createServer(async (req, res) => {
   const path = (req.url || '').split('?')[0];
   if (req.method === 'GET' && path === '/health') {
-    return json(res, 200, { ok: true, service: 'gokyuzunun-sesi-api', voiceConfigured: !!KEY });
+    return json(res, 200, { ok: true, service: 'gokyuzunun-sesi-api', voiceConfigured: !!KEY, profilesConfigured: { weather: !!VOICES.weather.id, astrology: !!VOICES.astrology.id } });
   }
   if (req.method === 'GET' && path === '/api/voice-profiles') {
-    return json(res, 200, { profiles: Object.entries(VOICES).map(([id, voice]) => ({ id, title: voice.title })) });
+    return json(res, 200, { profiles: Object.entries(VOICES).map(([id, voice]) => ({ id, title: voice.title, configured: !!voice.id })) });
   }
   if (req.method === 'POST' && path === '/api/voice-preview') {
     if (!rateLimit(req)) return json(res, 429, { error: 'Too many requests' });
@@ -122,7 +124,7 @@ const server = http.createServer(async (req, res) => {
           reason: err?.name === 'AbortError' ? 'timeout' : err?.code === 'UND_ERR_CONNECT_TIMEOUT' ? 'connection_timeout' : 'unexpected',
         }));
       }
-      return json(res, status, { error: status === 503 ? 'Voice service not configured' : status === 429 ? 'Preview budget reached' : status === 402 ? 'ElevenLabs account plan or credits do not permit this voice through the API' : status === 400 ? 'Invalid JSON' : 'Voice could not be generated' });
+      return json(res, status, { error: status === 503 ? 'Voice service or selected voice is not configured' : status === 429 ? 'Preview budget reached' : status === 402 ? 'ElevenLabs account plan or credits do not permit this voice through the API' : status === 400 ? 'Invalid JSON' : 'Voice could not be generated' });
     }
   }
   return json(res, 404, { error: 'Not found' });
