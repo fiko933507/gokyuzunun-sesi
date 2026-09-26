@@ -1,5 +1,6 @@
 // Server-side ElevenLabs proxy. Never expose ELEVENLABS_API_KEY to a mobile client.
 const http = require('node:http');
+const { narration } = require('./narration');
 
 const PORT = Number(process.env.PORT) || 10000;
 const KEY = process.env.ELEVENLABS_API_KEY;
@@ -44,16 +45,16 @@ function rateLimit(req) {
   }
   return recent.length <= 5;
 }
-async function speech(profile) {
-  if (cache.has(profile)) return cache.get(profile);
-  if (pending.has(profile)) return pending.get(profile);
+async function speech(profile, text = VOICES[profile].text, cacheKey = 'preview:' + profile) {
+  if (cache.has(cacheKey)) return cache.get(cacheKey);
+  if (pending.has(cacheKey)) return pending.get(cacheKey);
   if (!KEY) throw Object.assign(new Error('ElevenLabs key not configured'), { status: 503 });
   const voice = VOICES[profile];
   if (!voice.id) throw Object.assign(new Error('Voice ID not configured'), { status: 503 });
   if (!/^[A-Za-z0-9]{20}$/.test(voice.id)) throw Object.assign(new Error('Invalid voice ID configuration'), { status: 503 });
   const today = new Date().toISOString().slice(0, 10);
   if (today !== currentDay) { currentDay = today; generatedToday = 0; }
-  if (generatedToday >= 24) throw Object.assign(new Error('Preview budget reached'), { status: 429 });
+  if (generatedToday >= 24) throw Object.assign(new Error('Daily voice-generation limit reached'), { status: 429 });
   generatedToday++;
   const promise = (async () => {
     const controller = new AbortController();
@@ -62,7 +63,7 @@ async function speech(profile) {
       const upstream = await fetch('https://api.elevenlabs.io/v1/text-to-speech/' + encodeURIComponent(voice.id) + '?output_format=mp3_44100_128', {
         method: 'POST',
         headers: { 'xi-api-key': KEY, 'Content-Type': 'application/json', 'Accept': 'audio/mpeg' },
-        body: JSON.stringify({ text: voice.text, model_id: MODEL, voice_settings: voice.settings }),
+        body: JSON.stringify({ text, model_id: MODEL, voice_settings: voice.settings }),
         signal: controller.signal,
       });
       if (!upstream.ok) {
@@ -85,14 +86,15 @@ async function speech(profile) {
       }
       const data = Buffer.from(await upstream.arrayBuffer());
       if (!data.length || data.length > 5_000_000) throw Object.assign(new Error('Unexpected audio size'), { status: 502 });
-      cache.set(profile, data);
+      if (cache.size >= 80) cache.delete(cache.keys().next().value);
+      cache.set(cacheKey, data);
       return data;
     } finally {
       clearTimeout(timer);
     }
   })();
-  pending.set(profile, promise);
-  try { return await promise; } finally { pending.delete(profile); }
+  pending.set(cacheKey, promise);
+  try { return await promise; } finally { pending.delete(cacheKey); }
 }
 const server = http.createServer(async (req, res) => {
   const path = (req.url || '').split('?')[0];
@@ -102,7 +104,7 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'GET' && path === '/api/voice-profiles') {
     return json(res, 200, { profiles: Object.entries(VOICES).map(([id, voice]) => ({ id, title: voice.title, configured: !!voice.id })) });
   }
-  if (req.method === 'POST' && path === '/api/voice-preview') {
+  if (req.method === 'POST' && (path === '/api/voice-preview' || path === '/api/narration')) {
     if (!rateLimit(req)) return json(res, 429, { error: 'Too many requests' });
     let body = '';
     try {
@@ -113,18 +115,19 @@ const server = http.createServer(async (req, res) => {
       const input = JSON.parse(body);
       const profile = input && typeof input.profile === 'string' ? input.profile : '';
       if (!Object.hasOwn(VOICES, profile)) return json(res, 400, { error: 'Invalid voice profile' });
-      const data = await speech(profile);
+      const generated = path === '/api/narration' ? await narration(profile,input) : {text:VOICES[profile].text,cacheKey:'preview:'+profile};
+      const data = await speech(profile,generated.text,generated.cacheKey);
       res.writeHead(200, { 'Content-Type': 'audio/mpeg', 'Content-Length': data.length, 'Cache-Control': 'private, max-age=3600', 'X-Content-Type-Options': 'nosniff' });
       return res.end(data);
     } catch (err) {
       const status = [400, 402, 413, 429, 503].includes(err.status) ? err.status : 502;
       if (status === 502 && err?.message !== 'Speech provider unavailable') {
         console.error(JSON.stringify({
-          event: 'voice_preview_failed', profile: typeof profile === 'string' ? profile : 'unknown',
+          event: 'voice_generation_failed', profile: typeof profile === 'string' ? profile : 'unknown',
           reason: err?.name === 'AbortError' ? 'timeout' : err?.code === 'UND_ERR_CONNECT_TIMEOUT' ? 'connection_timeout' : 'unexpected',
         }));
       }
-      return json(res, status, { error: status === 503 ? 'Voice service or selected voice is not configured' : status === 429 ? 'Preview budget reached' : status === 402 ? 'ElevenLabs account plan or credits do not permit this voice through the API' : status === 400 ? 'Invalid JSON' : 'Voice could not be generated' });
+      return json(res, status, { error: status === 503 ? 'Voice service or selected voice is not configured' : status === 429 ? 'Daily generation budget reached' : status === 402 ? 'ElevenLabs account plan or credits do not permit this voice through the API' : status === 400 ? 'Invalid request' : 'Voice could not be generated' });
     }
   }
   return json(res, 404, { error: 'Not found' });
