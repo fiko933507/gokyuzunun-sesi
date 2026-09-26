@@ -125,7 +125,16 @@ const server = http.createServer(async (req, res) => {
     return json(res, 200, { ok: true, service: 'gokyuzunun-sesi-api', voiceConfigured: !!KEY, profilesConfigured: { weather: !!VOICES.weather.id, astrology: !!VOICES.astrology.id } });
   }
   if (req.method === 'GET' && path === '/api/voice-profiles') {
-    return json(res, 200, { profiles: Object.entries(VOICES).map(([id, voice]) => ({ id, title: voice.title, configured: !!voice.id })) });
+    const profiles = [];
+    for (const [id, voice] of Object.entries(VOICES)) {
+      let status = voice.id && KEY ? 'unverified' : 'unconfigured';
+      if (voice.id && KEY) {
+        try { await requireFemaleVoice(voice.id); status = 'female'; }
+        catch (err) { if (err.status === 409) status = 'not-female'; }
+      }
+      profiles.push({ id, title: voice.title, configured: !!voice.id, genderStatus: status });
+    }
+    return json(res, 200, { profiles });
   }
   if (req.method === 'POST' && (path === '/api/voice-preview' || path === '/api/narration')) {
     if (!rateLimit(req)) return json(res, 429, { error: 'Too many requests' });
