@@ -224,8 +224,31 @@ function Root(){
      {button('Burcumun tamamını gör  ›',()=>setScreen('zodiac'),true)}
    </>,{marginTop:15})}
    {panel(<>{txt('🔎 Şehir ara',18,true)}<View style={styles.search}><TextInput value={query} onChangeText={setQuery} onSubmitEditing={()=>void searchCity()} returnKeyType="search" placeholder="İstanbul, Ankara, İzmir..." placeholderTextColor={p.sub} style={[styles.input,{backgroundColor:p.input,color:p.text,borderColor:p.line}]}/><Pressable style={[styles.go,{backgroundColor:p.accent}]} onPress={()=>void searchCity()} disabled={busy}><Text style={{color:p.button,fontWeight:'800'}}>Ara</Text></Pressable></View>{button('📍 Konumumu kullan',()=>void locate(),true)}</>,{marginTop:15})}
-   {current&&daily&&<><View style={styles.facts}>{fact('🌡️','Hissedilen',num(current.apparent_temperature)+'°')}{fact('💧','Yağış', '%'+num(daily.precipitation_probability_max[0]))}{fact('🍃','Rüzgâr',num(current.wind_speed_10m)+' km/sa')}{fact('☁️','Nem','%'+num(current.relative_humidity_2m))}</View>
-   {panel(<>{txt('🎙️ Günün sesli rehberi',20,true)}<View style={{marginTop:9}}>{txt(narration,14)}</View>{button(voiceLoading==='weather'?'⏳ Ses hazırlanıyor…':activeVoice==='weather'?'■ Durdur':'▶ Doğal sesle dinle',()=>void playVoice('weather'))}{voiceLoading==='weather'&&<ActivityIndicator color={p.accent}/>}</>,{marginTop:16})}
+   {current&&daily&&<>
+   {panel(<>
+    <Text style={{color:p.accent,fontSize:13,letterSpacing:1}}>☁  HAVA DURUMU · {place?.name||'KONUMUM'}</Text>
+    <View style={{flexDirection:'row',alignItems:'center',gap:14,marginTop:12}}>
+      <Text style={{fontSize:56}}>{symbol(current.weather_code,dark)}</Text>
+      <View style={{flex:1}}>{txt(label(current.weather_code),22,true)}{txt('Bugünün en düşük '+num(daily.temperature_2m_min[0])+'° · en yüksek '+num(daily.temperature_2m_max[0])+'°',12,false,true)}</View>
+      <Text style={{color:p.text,fontSize:44,fontWeight:'700'}}>{num(current.temperature_2m)}°</Text>
+    </View>
+    {button('▶ Hava durumunu dinle',()=>void playVoice('weather'),true)}
+    {txt('Son güncelleme '+updated,11,false,true)}
+   </>,{marginTop:16})}
+   {panel(<>
+     <View style={{flexDirection:'row',alignItems:'center',gap:14}}>
+      <Text style={{fontSize:32,color:p.accent}}>◖♫◗</Text>
+      <View style={{flex:1}}>{txt('Sesli yorumumu dinle',20,true)}{txt('Gökyüzünün senin için söylediklerini keşfet.',12,false,true)}</View>
+     </View>
+     {button(voiceLoading==='astrology'?'⏳ Ses hazırlanıyor…':activeVoice==='astrology'?'■ Durdur':'▶ '+sign+' burcunu sesli dinle',()=>void playVoice('astrology'))}
+     {voiceLoading==='astrology'&&<ActivityIndicator color={p.accent}/>}
+   </>,{marginTop:16})}
+   <View style={styles.facts}>{fact('🌡️','Hissedilen',num(current.apparent_temperature)+'°')}{fact('💧','Yağış', '%'+num(daily.precipitation_probability_max[0]))}{fact('🍃','Rüzgâr',num(current.wind_speed_10m)+' km/sa')}{fact('☁️','Nem','%'+num(current.relative_humidity_2m))}</View>
+   {panel(<>
+     {txt('✧ Gökyüzünün Mesajı',21,true)}
+     <View style={{marginTop:8}}>{txt('Bugünün hava durumunu gözlemle, gezegenlerin konumlarını keşfet; kendi gününün hikâyesini sen yaz.',14)}</View>
+     {button('Gökyüzünü keşfet  ›',()=>setScreen('sky'),true)}
+   </>,{marginTop:16})}
    {panel(<>{txt('Önümüzdeki günler',20,true)}{daily.time.slice(1,5).map((d,i)=><View key={d} style={[styles.forecast,{borderColor:p.line}]}><Text style={{fontSize:23}}>{symbol(daily.weather_code[i+1],dark)}</Text><View style={{flex:1}}>{txt(new Date(d+'T12:00:00').toLocaleDateString('tr-TR',{weekday:'long',day:'numeric',month:'long'}),13,true)}{txt(label(daily.weather_code[i+1])+' · Yağış %'+num(daily.precipitation_probability_max[i+1]),11,false,true)}</View>{txt(num(daily.temperature_2m_min[i+1])+'° / '+num(daily.temperature_2m_max[i+1])+'°',12,true)}</View>)}</>,{marginTop:16})}</>}
   </>}
   {screen==='sky'&&<>{panel(<>{txt('🌙 Ay fazı · '+astronomy.phaseName,23,true)}{txt('Ay aydınlığı: %'+astronomy.illuminated,16)}{txt('Hesaplanan an: '+new Date(astronomy.date).toLocaleString('tr-TR'),12,false,true)}{daily?<View style={styles.facts}>{fact('🌅','Gün doğumu',time(rise))}{fact('🌇','Gün batımı',time(set))}{fact('☀️','UV endeksi',num(daily.uv_index_max[0]))}{fact(symbol(daily.weather_code[0],dark),'Hava',label(daily.weather_code[0]))}</View>:null}</>)}
@@ -241,5 +264,5 @@ function Root(){
 }
 export default function App(){return <SafeAreaProvider><Root/></SafeAreaProvider>;}
 const styles=StyleSheet.create({
- page:{paddingHorizontal:18,paddingTop:22,paddingBottom:40},planetStrip:{flexDirection:'row',justifyContent:'space-around',marginTop:20,gap:5},miniPlanet:{flex:1,alignItems:'center',gap:3},zodiacWheel:{marginTop:15,alignSelf:'center',width:'100%',maxWidth:290,aspectRatio:1,borderWidth:2,borderColor:'#CDA77D',borderRadius:150,padding:18,justifyContent:'center'},wheelGrid:{flexDirection:'row',flexWrap:'wrap',justifyContent:'center',gap:7},wheelSign:{width:'29%',height:48,borderRadius:13,alignItems:'center',justifyContent:'center'},nav:{flexDirection:'row',gap:6,marginTop:19,marginBottom:20},navItem:{flex:1,paddingVertical:13,borderRadius:13,alignItems:'center'},hero:{borderRadius:28,padding:22,minHeight:200},panel:{borderWidth:1,borderRadius:23,padding:19},button:{paddingVertical:15,borderRadius:15,alignItems:'center',marginTop:15},search:{flexDirection:'row',alignItems:'center',gap:9,marginTop:13},input:{flex:1,minWidth:0,borderWidth:1,borderRadius:14,padding:12,fontSize:14},go:{paddingVertical:14,paddingHorizontal:17,borderRadius:14},facts:{flexDirection:'row',flexWrap:'wrap',gap:10,marginTop:15},fact:{width:'48%',flexGrow:1,borderWidth:1,borderRadius:18,padding:14,gap:3},forecast:{flexDirection:'row',alignItems:'center',gap:10,paddingVertical:14,borderBottomWidth:1},signs:{flexDirection:'row',flexWrap:'wrap',gap:8,marginTop:17},sign:{width:'31%',flexGrow:1,alignItems:'center',borderRadius:15,paddingVertical:14,gap:4},switchRow:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',marginVertical:12},timeInput:{width:66,textAlign:'center',fontSize:23,fontWeight:'800',borderRadius:12,padding:10}
+ page:{paddingHorizontal:16,paddingTop:15,paddingBottom:44},header:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:12,paddingBottom:5},headerAction:{width:48,height:48,borderRadius:24,borderWidth:1,alignItems:'center',justifyContent:'center'},planetStrip:{flexDirection:'row',justifyContent:'space-around',marginTop:20,gap:5},miniPlanet:{flex:1,alignItems:'center',gap:3},zodiacWheel:{marginTop:15,alignSelf:'center',width:'100%',maxWidth:290,aspectRatio:1,borderWidth:2,borderColor:'#CDA77D',borderRadius:150,padding:18,justifyContent:'center'},wheelGrid:{flexDirection:'row',flexWrap:'wrap',justifyContent:'center',gap:7},wheelSign:{width:'29%',height:48,borderRadius:13,alignItems:'center',justifyContent:'center'},nav:{flexDirection:'row',gap:4,marginTop:21,marginBottom:16,borderWidth:1,borderRadius:35,padding:5},navItem:{flex:1,paddingVertical:12,paddingHorizontal:2,borderRadius:28,alignItems:'center'},hero:{borderRadius:29,padding:17,minHeight:285},panel:{borderWidth:1,borderRadius:25,padding:18},button:{paddingVertical:15,borderRadius:15,alignItems:'center',marginTop:15},search:{flexDirection:'row',alignItems:'center',gap:9,marginTop:13},input:{flex:1,minWidth:0,borderWidth:1,borderRadius:14,padding:12,fontSize:14},go:{paddingVertical:14,paddingHorizontal:17,borderRadius:14},facts:{flexDirection:'row',flexWrap:'wrap',gap:10,marginTop:15},fact:{width:'48%',flexGrow:1,borderWidth:1,borderRadius:18,padding:14,gap:3},forecast:{flexDirection:'row',alignItems:'center',gap:10,paddingVertical:14,borderBottomWidth:1},signs:{flexDirection:'row',flexWrap:'wrap',gap:8,marginTop:17},sign:{width:'31%',flexGrow:1,alignItems:'center',borderRadius:15,paddingVertical:14,gap:4},switchRow:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',marginVertical:12},timeInput:{width:66,textAlign:'center',fontSize:23,fontWeight:'800',borderRadius:12,padding:10}
 });
