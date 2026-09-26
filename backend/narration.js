@@ -62,7 +62,7 @@ async function narration(profile, input, now = new Date(), fetchImpl = fetch) {
   const latitude = Math.round(input.latitude*20)/20;
   const longitude = Math.round(input.longitude*20)/20;
   const bucket = Math.floor(now.getUTCHours()/3);
-  const cacheKey = 'v3:weather:'+day+':'+bucket+':'+latitude+':'+longitude;
+  let cacheKey = 'v3:weather:'+day+':'+bucket+':'+latitude+':'+longitude;
   const params = new URLSearchParams({
     latitude:String(latitude),longitude:String(longitude),
     current:'temperature_2m,apparent_temperature,wind_speed_10m,weather_code',
@@ -79,7 +79,10 @@ async function narration(profile, input, now = new Date(), fetchImpl = fetch) {
   } catch(error){
     if(!validSnapshot(input.weatherSnapshot))throw error;
   }
-  if(!w && validSnapshot(input.weatherSnapshot))w=snapshotWeather(input.weatherSnapshot);
+  if(!w && validSnapshot(input.weatherSnapshot)){
+    w=snapshotWeather(input.weatherSnapshot);
+    cacheKey+=':device:'+round(input.weatherSnapshot.temp)+':'+round(input.weatherSnapshot.rain)+':'+round(input.weatherSnapshot.code);
+  }
   if(!w?.current || !w.daily?.time?.length) throw Object.assign(new Error('Forecast unavailable'),{status:503});
   const name=placeLabel(input.place);
   const rain=round(w.daily.precipitation_probability_max[0]);
