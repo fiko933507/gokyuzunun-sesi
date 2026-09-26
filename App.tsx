@@ -9,10 +9,12 @@ import { setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from 'expo-au
 import { getVoiceAudio } from './cloudVoice';
 import type { VoiceProfile } from './voiceConfig';
 import { skyAt, symbolicReading } from './astronomy';
+import { MoonDisc, SkyAtmosphere, ZodiacWheel } from './CelestialVisuals';
 import { dailyNotificationEnabled, setDailyNotification, stopDailyNotification } from './notifications';
 
 type Place = { name: string; latitude: number; longitude: number };
 type Weather = {
+ utc_offset_seconds?: number;
  current: { temperature_2m: number; apparent_temperature: number; relative_humidity_2m: number; wind_speed_10m: number; weather_code: number; is_day: number };
  daily: { time: string[]; weather_code: number[]; temperature_2m_max: number[]; temperature_2m_min: number[]; precipitation_probability_max: number[]; sunrise: string[]; sunset: string[]; uv_index_max: number[] };
 };
@@ -20,13 +22,14 @@ const SIGNS = ['Koç','Boğa','İkizler','Yengeç','Aslan','Başak','Terazi','Ak
 const ICONS = ['♈','♉','♊','♋','♌','♍','♎','♏','♐','♑','♒','♓'];
 const NOTES = ['Bugün önceliklerini sakinlikle seç.','Küçük bir adım için kendine alan aç.','Merak ettiğin bir konuya zaman ayır.','Sevdiklerinle bağ kur.','Yaratıcı fikrini paylaş.','Detaylarla uğraşırken dinlenmeyi unutma.','Kararlarında dengeyi gözet.','Düşüncelerini yazıya dök.','Yeni bir şey öğren.','Hedeflerin için küçük bir plan yap.','Farklı bir fikre kulak ver.','Hayal gücünü somut bir adımla birleştir.'];
 const PALETTE = {
- day: { bg:'#FFF5E9',panel:'#FFFEFA',hero:'#FCE4BF',text:'#48365F',sub:'#816D8F',accent:'#7C579A',line:'#E8D3C4',input:'#F7E7E8',button:'#FFFFFF' },
- night: { bg:'#100E28',panel:'#242040',hero:'#2B224D',text:'#FFF1E4',sub:'#D6C7E8',accent:'#E6C38C',line:'#69557F',input:'#302647',button:'#1A1232' }
+ day: { bg:'#F8DDE2',panel:'rgba(255,253,250,0.90)',hero:'rgba(255,244,237,0.82)',text:'#403052',sub:'#735D85',accent:'#6F4B89',line:'rgba(255,255,255,0.8)',input:'rgba(255,255,255,0.65)',button:'#FFF9ED' },
+ night: { bg:'#100F2B',panel:'rgba(35,30,67,0.83)',hero:'rgba(35,30,67,0.48)',text:'#FFF2E8',sub:'#D5C2E9',accent:'#F5D8A7',line:'rgba(211,171,227,0.43)',input:'rgba(65,48,88,0.78)',button:'#281C44' }
 };
 function label(code:number) { if(code>=95)return 'Gök gürültülü yağış'; if(code>=71&&code<=77||code>=85&&code<=86)return 'Karlı'; if(code>=51&&code<=67||code>=80&&code<=82)return 'Yağmurlu'; if(code>=45&&code<=48)return 'Sisli'; if(code>=3)return 'Bulutlu'; if(code>=1)return 'Parçalı bulutlu'; return 'Açık'; }
 function symbol(code:number,dark:boolean){ if(code>=95)return '⛈️'; if(code>=71&&code<=77||code>=85&&code<=86)return '❄️'; if(code>=51&&code<=67||code>=80&&code<=82)return '🌧️'; if(code>=45&&code<=48)return '🌫️'; if(code>=1&&code<=3)return '☁️'; return dark?'🌙':'☀️'; }
 const time=(s?:string)=>s?.split('T')[1]?.slice(0,5)||'—';
 const num=(n?:number)=>Number.isFinite(n)?String(Math.round(n!)):'—';
+function currentIsNight(w:Weather){return w.current.is_day!==1;}
 function Root(){
  const [screen,setScreen]=useState<'weather'|'sky'|'zodiac'|'settings'>('weather');
  const [weather,setWeather]=useState<Weather|null>(null);
@@ -101,7 +104,11 @@ function Root(){
   finally{setBusy(false);}
  }
  const rise=weather?.daily.sunrise[0],set=weather?.daily.sunset[0];
- const nightBySun=rise&&set?now<new Date(rise).getTime()||now>=new Date(set).getTime():new Date(now).getHours()<6||new Date(now).getHours()>=19;
+ const localClock=new Date(now+(weather?.utc_offset_seconds??(-new Date().getTimezoneOffset()*60))*1000);
+ const locationMinute=localClock.getUTCHours()*60+localClock.getUTCMinutes();
+ const toMinute=(value?:string)=>{const valueTime=time(value).split(':').map(Number);return valueTime.length===2&&valueTime.every(Number.isFinite)?valueTime[0]*60+valueTime[1]:null;};
+ const sunriseMinute=toMinute(rise),sunsetMinute=toMinute(set);
+ const nightBySun=sunriseMinute!==null&&sunsetMinute!==null?(locationMinute<sunriseMinute||locationMinute>=sunsetMinute):weather?currentIsNight(weather):locationMinute<360||locationMinute>=1140;
  const dark=theme==='night'||theme==='auto'&&nightBySun;
  const p=dark?PALETTE.night:PALETTE.day;
  const current=weather?.current,daily=weather?.daily;
