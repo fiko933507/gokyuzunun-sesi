@@ -9,7 +9,8 @@
   "scripts": {
     "start": "node server.js",
     "check": "node --check server.js",
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/*.test.js",
+    "postinstall": "npm run check && npm test"
   },
   "dependencies": {
     "astronomy-engine": "2.1.19"
