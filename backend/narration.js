@@ -20,6 +20,16 @@ function forecastCode(code) {
   return 'açık';
 }
 function round(n) { return Math.round(Number(n)); }
+function validSnapshot(s) {
+  if(!s || typeof s !== 'object')return false;
+  const inRange=(n,min,max)=>typeof n==='number'&&Number.isFinite(n)&&n>=min&&n<=max;
+  return inRange(s.temp,-90,65)&&inRange(s.feels,-100,70)&&inRange(s.wind,0,300)&&
+    inRange(s.code,0,99)&&inRange(s.min,-90,65)&&inRange(s.max,-90,65)&&
+    inRange(s.rain,0,100)&&s.min<=s.max&&
+    typeof s.sunrise==='string'&&/^\d{4}-\d\d-\d\dT([01]\d|2[0-3]):[0-5]\d/.test(s.sunrise)&&
+    typeof s.sunset==='string'&&/^\d{4}-\d\d-\d\dT([01]\d|2[0-3]):[0-5]\d/.test(s.sunset);
+}
+function snapshotWeather(s){return {current:{temperature_2m:s.temp,apparent_temperature:s.feels,wind_speed_10m:s.wind,weather_code:s.code},daily:{time:[s.sunrise.slice(0,10)],temperature_2m_min:[s.min],temperature_2m_max:[s.max],precipitation_probability_max:[s.rain],sunrise:[s.sunrise],sunset:[s.sunset]}};}
 function sunTime(s) { return typeof s === 'string' ? s.split('T')[1]?.slice(0,5) || 'bilinmiyor' : 'bilinmiyor'; }
 function signAt(body, date) {
   const lon = body === Astronomy.Body.Moon
@@ -59,10 +69,18 @@ async function narration(profile, input, now = new Date(), fetchImpl = fetch) {
     daily:'temperature_2m_min,temperature_2m_max,precipitation_probability_max,sunrise,sunset',
     forecast_days:'1',timezone:'auto',
   });
-  const response=await fetchImpl('https://api.open-meteo.com/v1/forecast?'+params,{signal:AbortSignal.timeout(12000)});
-  if(!response.ok) { console.error(JSON.stringify({event:'weather_upstream_rejected',providerStatus:response.status})); throw Object.assign(new Error('Weather service unavailable'),{status:503}); }
-  const w=await response.json();
-  if(!w.current || !w.daily?.time?.length) throw Object.assign(new Error('Forecast unavailable'),{status:503});
+  let w;
+  try {
+    const response=await fetchImpl('https://api.open-meteo.com/v1/forecast?'+params,{signal:AbortSignal.timeout(12000)});
+    if(!response.ok) {
+      console.error(JSON.stringify({event:'weather_upstream_rejected',providerStatus:response.status}));
+      if(response.status!==429)throw Object.assign(new Error('Weather service unavailable'),{status:503});
+    } else w=await response.json();
+  } catch(error){
+    if(!validSnapshot(input.weatherSnapshot))throw error;
+  }
+  if(!w && validSnapshot(input.weatherSnapshot))w=snapshotWeather(input.weatherSnapshot);
+  if(!w?.current || !w.daily?.time?.length) throw Object.assign(new Error('Forecast unavailable'),{status:503});
   const name=placeLabel(input.place);
   const rain=round(w.daily.precipitation_probability_max[0]);
   const min=round(w.daily.temperature_2m_min[0]);
