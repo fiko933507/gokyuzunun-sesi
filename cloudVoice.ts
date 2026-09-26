@@ -4,6 +4,13 @@ import { fetch as expoFetch } from 'expo/fetch';
 import type { VoiceProfile } from './voiceConfig';
 
 const API = 'https://gokyuzunun-sesi.onrender.com';
+export async function getVoiceProfileStatus():Promise<Record<VoiceProfile,string>> {
+ const response=await fetch(API+'/api/voice-profiles');
+ if(!response.ok)throw new Error('Ses profilleri alınamadı.');
+ const data=await response.json() as {profiles:Array<{id:VoiceProfile;genderStatus:string}>};
+ return Object.fromEntries(data.profiles.map(p=>[p.id,p.genderStatus])) as Record<VoiceProfile,string>;
+}
+
 export type VoiceRequest = { profile:'weather';latitude:number;longitude:number;place:string } |
  { profile:'astrology'; sign:string };
 function filename(input:VoiceRequest):string {
