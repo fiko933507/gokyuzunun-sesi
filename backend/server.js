@@ -115,7 +115,7 @@ async function requireFemaleVoice(id) {
     if (!res.ok) throw Object.assign(new Error('Voice metadata unavailable'), { status: 503 });
     const details = await res.json();
     const gender = String(details?.labels?.gender || '').toLowerCase();
-    voiceGenderCache.set(id, { gender, checkedAt: Date.now() });
+    voiceGenderCache.set(id, { gender, name: typeof details?.name === 'string' ? details.name.slice(0, 80) : '', checkedAt: Date.now() });
     if (gender !== 'female') throw Object.assign(new Error('Selected voice is not verified female'), { status: 409 });
   } finally { clearTimeout(timer); }
 }
@@ -132,7 +132,9 @@ const server = http.createServer(async (req, res) => {
         try { await requireFemaleVoice(voice.id); status = 'female'; }
         catch (err) { if (err.status === 409) status = 'not-female'; }
       }
-      profiles.push({ id, title: voice.title, configured: !!voice.id, genderStatus: status });
+      const verified = voice.id ? voiceGenderCache.get(voice.id) : null;
+      profiles.push({ id, title: voice.title, configured: !!voice.id, genderStatus: status,
+        genderLabel: verified?.gender || 'missing', voiceName: verified?.name || '' });
     }
     return json(res, 200, { profiles });
   }
