@@ -103,7 +103,7 @@ async function speech(profile, text = VOICES[profile].text, cacheKey = 'preview:
 async function requireFemaleVoice(id) {
   const cached = voiceGenderCache.get(id);
   if (cached && Date.now() - cached.checkedAt < 30 * 60_000) {
-    if (cached.gender !== 'female') throw Object.assign(new Error('Selected voice is not verified female'), { status: 409 });
+    if (!cached.allowed) throw Object.assign(new Error('Selected voice is not verified female'), { status: 409 });
     return;
   }
   const controller = new AbortController();
@@ -115,8 +115,14 @@ async function requireFemaleVoice(id) {
     if (!res.ok) throw Object.assign(new Error('Voice metadata unavailable'), { status: 503 });
     const details = await res.json();
     const gender = String(details?.labels?.gender || '').toLowerCase();
-    voiceGenderCache.set(id, { gender, name: typeof details?.name === 'string' ? details.name.slice(0, 80) : '', checkedAt: Date.now() });
-    if (gender !== 'female') throw Object.assign(new Error('Selected voice is not verified female'), { status: 409 });
+    // Voice Design often leaves gender labels empty, and the dashboard's Edit Voice
+    // dialog offers no label editor. Permit only the explicitly configured voice
+    // with a female description; do not present this as provider verification.
+    const description = String(details?.description || '');
+    const describedFemale = !gender && details?.is_owner !== false && /\b(female|woman)\b|kadın/i.test(description);
+    const allowed = gender === 'female' || describedFemale;
+    voiceGenderCache.set(id, { gender, allowed, describedFemale, name: typeof details?.name === 'string' ? details.name.slice(0, 80) : '', checkedAt: Date.now() });
+    if (!allowed) throw Object.assign(new Error('Selected voice is not verified female'), { status: 409 });
   } finally { clearTimeout(timer); }
 }
 const server = http.createServer(async (req, res) => {
@@ -129,7 +135,7 @@ const server = http.createServer(async (req, res) => {
     for (const [id, voice] of Object.entries(VOICES)) {
       let status = voice.id && KEY ? 'unverified' : 'unconfigured';
       if (voice.id && KEY) {
-        try { await requireFemaleVoice(voice.id); status = 'female'; }
+        try { await requireFemaleVoice(voice.id); status = voiceGenderCache.get(voice.id)?.describedFemale ? 'female-description-unverified' : 'female'; }
         catch (err) { if (err.status === 409) status = 'not-female'; }
       }
       const verified = voice.id ? voiceGenderCache.get(voice.id) : null;
