@@ -23,4 +23,10 @@ jobs:
             git push
           fi
       - run: npm run typecheck
+      - name: Verify voice backend
+        run: |
+          cd backend
+          npm install --no-audit --no-fund
+          npm run check
+          npm test
       - run: npx expo install --check
