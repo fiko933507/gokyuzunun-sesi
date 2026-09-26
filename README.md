@@ -1,18 +1,25 @@
 # Gökyüzünün Sesi
 
-Konuma göre hava tahmini ve Türkçe sesli günlük özet sunan Android odaklı ilk prototip. Astroloji sekmesi isteğe bağlı bir yorum alanıdır; ilk sürümde kişiye özel gezegen konumu hesaplanmaz.
+Expo / React Native ile geliştirilmiş Türkçe sesli hava durumu ve gökyüzü uygulaması.
 
-## Çalıştırma (Expo Go SDK 58)
+## Özellikler
+- Open-Meteo üzerinden canlı hava durumu ve 5 günlük tahmin
+- Konum izni veya şehir adıyla arama
+- Konuma göre güneş doğuş/batış saatleri; otomatik gündüz/gece tema
+- Gökyüzü kartları: UV endeksi, yağış, nem, rüzgâr
+- Telefonun Türkçe konuşma motoruyla hava özeti (başlat/durdur)
+- 12 burç için eğlence amaçlı genel notlar
+- Güvenli alan uyumlu, alt menüsüz ekran düzeni
 
-SDK 58 şu anda önizleme sürümündedir. Proje, Expo Go SDK 58 ile uyumlu olması için doğrulanan `expo@58.0.0-preview.7` paketini kullanır. Node.js 22 önerilir.
+## Çalıştırma
 
-```bash
+```powershell
+cd "C:\Users\fiko9\gokyuzunun-sesi"
+git pull origin main
 npm install
 npx expo start --clear
 ```
 
-Daha önce SDK 57 bağımlılıklarını yüklediyseniz önce `node_modules` klasörünü silip `npm install` komutunu yeniden çalıştırın.
+Node.js 22 ve projenin Expo SDK sürümüyle uyumlu Expo Go kullanın. Bu depoda Expo 58 önizleme sürümü bulunuyor.
 
-Expo Go ile QR kodunu açın. Konum ve bildirim izinlerini verin. Saatim ekranında tercih ettiğiniz saati kaydedebilirsiniz; Expo Go sürümünde otomatik bildirim gönderilmez. Hava verisi [Open-Meteo](https://open-meteo.com/) üzerinden alınır; veri bağlantısı gerekir. Saatler cihazın yerel saatine göre değerlendirilir. Hava tahmini açıldığında yenilenir ve ana ekrandaki **Sesli dinle** düğmesiyle okunur. Expo Go SDK 58 önizlemesinde bildirimler için gerekli yerel modül bulunmadığından otomatik uyarı özelliği geliştirme derlemesine ertelenmiştir.
-
-Astroloji yorumları bilimsel hava tahmininden ayrı gösterilir. Şu an yorum alanı örnek içeriktir; gerçek gezegen geçişi iddiası içermez.
+**Sınırlar:** Otomatik arka plan bildirimleri henüz yoktur; seçilen saat yalnızca saklanır. Seslendirme bulut tabanlı insan sesi değildir ve kalite cihazın Türkçe TTS paketine bağlıdır. Burç notları canlı gezegen hesaplaması değil, eğlence amaçlı sabit metinlerdir. İnternet bağlantısı gerekir.
