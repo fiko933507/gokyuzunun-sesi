@@ -22,6 +22,7 @@ const VOICES = Object.freeze({
 const cache = new Map();
 const pending = new Map();
 const requests = new Map();
+const voiceGenderCache = new Map();
 let generatedToday = 0;
 let currentDay = new Date().toISOString().slice(0, 10);
 
@@ -46,12 +47,15 @@ function rateLimit(req) {
   return recent.length <= 5;
 }
 async function speech(profile, text = VOICES[profile].text, cacheKey = 'preview:' + profile) {
-  if (cache.has(cacheKey)) return cache.get(cacheKey);
-  if (pending.has(cacheKey)) return pending.get(cacheKey);
   if (!KEY) throw Object.assign(new Error('ElevenLabs key not configured'), { status: 503 });
   const voice = VOICES[profile];
   if (!voice.id) throw Object.assign(new Error('Voice ID not configured'), { status: 503 });
   if (!/^[A-Za-z0-9]{20}$/.test(voice.id)) throw Object.assign(new Error('Invalid voice ID configuration'), { status: 503 });
+  // A voice ID does not encode gender. Check the provider's actual voice metadata
+  // before serving cached or newly generated audio, so an old male MP3 cannot play.
+  await requireFemaleVoice(voice.id);
+  if (cache.has(cacheKey)) return cache.get(cacheKey);
+  if (pending.has(cacheKey)) return pending.get(cacheKey);
   const today = new Date().toISOString().slice(0, 10);
   if (today !== currentDay) { currentDay = today; generatedToday = 0; }
   if (generatedToday >= 12) throw Object.assign(new Error('Daily voice-generation limit reached'), { status: 429 });
@@ -96,6 +100,25 @@ async function speech(profile, text = VOICES[profile].text, cacheKey = 'preview:
   pending.set(cacheKey, promise);
   try { return await promise; } finally { pending.delete(cacheKey); }
 }
+async function requireFemaleVoice(id) {
+  const cached = voiceGenderCache.get(id);
+  if (cached && Date.now() - cached.checkedAt < 30 * 60_000) {
+    if (cached.gender !== 'female') throw Object.assign(new Error('Selected voice is not verified female'), { status: 409 });
+    return;
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10_000);
+  try {
+    const res = await fetch('https://api.elevenlabs.io/v1/voices/' + encodeURIComponent(id), {
+      headers: { 'xi-api-key': KEY, Accept: 'application/json' }, signal: controller.signal,
+    });
+    if (!res.ok) throw Object.assign(new Error('Voice metadata unavailable'), { status: 503 });
+    const details = await res.json();
+    const gender = String(details?.labels?.gender || '').toLowerCase();
+    voiceGenderCache.set(id, { gender, checkedAt: Date.now() });
+    if (gender !== 'female') throw Object.assign(new Error('Selected voice is not verified female'), { status: 409 });
+  } finally { clearTimeout(timer); }
+}
 const server = http.createServer(async (req, res) => {
   const path = (req.url || '').split('?')[0];
   if (req.method === 'GET' && path === '/health') {
@@ -120,17 +143,17 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(200, { 'Content-Type': 'audio/mpeg', 'Content-Length': data.length, 'Cache-Control': 'private, max-age=3600', 'X-Content-Type-Options': 'nosniff' });
       return res.end(data);
     } catch (err) {
-      const status = [400, 402, 413, 429, 503].includes(err.status) ? err.status : 502;
+      const status = [400, 402, 409, 413, 429, 503].includes(err.status) ? err.status : 502;
       if (status === 502 && err?.message !== 'Speech provider unavailable') {
         console.error(JSON.stringify({
           event: 'voice_generation_failed', profile: typeof profile === 'string' ? profile : 'unknown',
           reason: err?.name === 'AbortError' ? 'timeout' : err?.code === 'UND_ERR_CONNECT_TIMEOUT' ? 'connection_timeout' : 'unexpected',
         }));
       }
-      return json(res, status, { error: status === 503 ? 'Voice service or selected voice is not configured' : status === 429 ? 'Daily generation budget reached' : status === 402 ? 'ElevenLabs account plan or credits do not permit this voice through the API' : status === 400 ? 'Invalid request' : 'Voice could not be generated' });
+      return json(res, status, { error: status === 409 ? 'Configured voice is not verified female; select a saved female voice ID' : status === 503 ? 'Voice service or selected voice is not configured' : status === 429 ? 'Daily generation budget reached' : status === 402 ? 'ElevenLabs account plan or credits do not permit this voice through the API' : status === 400 ? 'Invalid request' : 'Voice could not be generated' });
     }
   }
   return json(res, 404, { error: 'Not found' });
 });
 if (require.main === module) server.listen(PORT, '0.0.0.0', () => console.log('Gökyüzünün Sesi API listening on port ' + PORT));
-module.exports = { server };
+module.exports = { server, requireFemaleVoice };
