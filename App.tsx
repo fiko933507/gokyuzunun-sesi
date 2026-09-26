@@ -1,10 +1,13 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import * as Location from 'expo-location';
 import * as Speech from 'expo-speech';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
+import { getVoiceAudio } from './cloudVoice';
+import type { VoiceProfile } from './voiceConfig';
 import { skyAt, symbolicReading } from './astronomy';
 import { dailyNotificationEnabled, setDailyNotification, stopDailyNotification } from './notifications';
 
@@ -32,6 +35,11 @@ function Root(){
  const [busy,setBusy]=useState(false);
  const [error,setError]=useState('');
  const [speaking,setSpeaking]=useState(false);
+ const [voiceLoading,setVoiceLoading]=useState<VoiceProfile|null>(null);
+ const [activeVoice,setActiveVoice]=useState<VoiceProfile|null>(null);
+ const voiceRequestId=useRef(0);
+ const player=useAudioPlayer(null);
+ const playback=useAudioPlayerStatus(player);
  const [voiceEnabled,setVoiceEnabled]=useState(true);
  const [sign,setSign]=useState('Koç');
  const [theme,setTheme]=useState<'auto'|'day'|'night'>('auto');
@@ -103,20 +111,52 @@ function Root(){
   const advice=rain>=50?'Şemsiyeni yanına almayı unutma.':current.wind_speed_10m>=45?'Rüzgâr güçlü, dışarıda dikkatli ol.':daily.temperature_2m_min[0]<=5?'Sabah serinliği için kalın giyin.':daily.temperature_2m_max[0]>=32?'Sıcak havada bol su iç.':'Günün tadını çıkar.';
   return 'Merhaba. '+(place?.name||'Bulunduğun yer')+' için gökyüzünün sesine hoş geldin. Şu anda hava '+label(current.weather_code).toLocaleLowerCase('tr-TR')+'. Sıcaklık '+num(current.temperature_2m)+', hissedilen '+num(current.apparent_temperature)+' derece. Günün en düşük sıcaklığı '+num(daily.temperature_2m_min[0])+', en yükseği '+num(daily.temperature_2m_max[0])+' derece. Yağış olasılığı yüzde '+num(rain)+'. Güneş '+time(rise)+' saatinde doğuyor, '+time(set)+' saatinde batıyor. '+advice;
  },[current,daily,place,rise,set]);
- async function speak(){
+ async function speakNative(profile:VoiceProfile){
   if(speaking){await Speech.stop();setSpeaking(false);return;}
   if(!voiceEnabled){Alert.alert('Ses kapalı','Ayarlar bölümünden sesli rehberi aç.');return;}
-  if(!narration)return;
+  const reading=profile==='weather'?narration:symbolicReading(sign,astronomy);
+  if(!reading)return;
   try{
    const voices=await Speech.getAvailableVoicesAsync();
    const tr=voices.filter(v=>v.language?.toLowerCase().startsWith('tr'));
    const voice=tr.find(v=>String(v.quality).toLowerCase()==='enhanced')||tr[0];
    await Speech.stop();
    setSpeaking(true);
-   Speech.speak(narration,{language:'tr-TR',voice:voice?.identifier,rate:0.91,pitch:1,onDone:()=>setSpeaking(false),onStopped:()=>setSpeaking(false),onError:()=>setSpeaking(false)});
+   Speech.speak(reading,{language:'tr-TR',voice:voice?.identifier,rate:0.91,pitch:1,onDone:()=>setSpeaking(false),onStopped:()=>setSpeaking(false),onError:()=>setSpeaking(false)});
   }catch{setSpeaking(false);Alert.alert('Ses hatası','Cihazın Türkçe ses paketini kontrol et.');}
  }
- useEffect(()=>()=>{void Speech.stop();},[]);
+ async function playVoice(profile:VoiceProfile){
+  if(!voiceEnabled){Alert.alert('Ses kapalı','Ayarlar bölümünden sesli rehberi aç.');return;}
+  if(activeVoice===profile || voiceLoading===profile){
+   voiceRequestId.current++;player.pause();setActiveVoice(null);setVoiceLoading(null);
+   return;
+  }
+  if(profile==='weather' && (!place || !weather)){Alert.alert('Hava durumu bekleniyor','Önce konum ya da şehir seçip hava durumunu yükle.');return;}
+  const token=++voiceRequestId.current;
+  player.pause();await Speech.stop();setSpeaking(false);setActiveVoice(null);setVoiceLoading(profile);
+  try{
+   const request=profile==='weather'
+     ? {profile:'weather' as const,latitude:place!.latitude,longitude:place!.longitude,place:place!.name}
+     : {profile:'astrology' as const,sign};
+   const uri=await getVoiceAudio(request);
+   if(token!==voiceRequestId.current)return;
+   await setAudioModeAsync({playsInSilentMode:true});
+   player.replace({uri});
+   player.play();
+   setActiveVoice(profile);
+  }catch(e){
+   if(token!==voiceRequestId.current)return;
+   const reason=e instanceof Error?e.message:'Ses alınamadı.';
+   Alert.alert('Bulut seslendirmesi açılamadı',reason+' Yerel Türkçe sesle devam etmek ister misin?',[
+    {text:'Vazgeç',style:'cancel'},
+    {text:'Yerel ses',onPress:()=>{void speakNative(profile);}},
+   ]);
+  }finally{
+   if(token===voiceRequestId.current)setVoiceLoading(null);
+  }
+ }
+ useEffect(()=>{if(playback.didJustFinish){setActiveVoice(null);}},[playback.didJustFinish]);
+ useEffect(()=>()=>{voiceRequestId.current++;player.pause();void Speech.stop();},[player]);
  const txt=(s:string,size=15,bold=false,muted=false)=> <Text style={{color:muted?p.sub:p.text,fontSize:size,fontWeight:bold?'800':'400',lineHeight:size+7}}>{s}</Text>;
  const panel=(content:React.ReactNode,style:object={})=><View style={[styles.panel,{backgroundColor:p.panel,borderColor:p.line},style]}>{content}</View>;
  const button=(text:string,action:()=>void,secondary=false)=><Pressable accessibilityRole="button" onPress={action} style={[styles.button,{backgroundColor:secondary?p.input:p.accent}]}><Text style={{color:secondary?p.text:p.button,fontWeight:'800'}}>{text}</Text></Pressable>;
@@ -133,15 +173,15 @@ function Root(){
    {panel(<>{txt('✧ Burç Çarkı',21,true)}<View style={styles.zodiacWheel}><View style={styles.wheelGrid}>{SIGNS.map((name,i)=><Pressable key={name} accessibilityRole="button" onPress={()=>{setSign(name);setScreen('zodiac');}} style={[styles.wheelSign,{backgroundColor:name===sign?p.accent:p.input}]}><Text style={{fontSize:23,color:name===sign?p.button:p.text}}>{ICONS[i]}</Text></Pressable>)}</View><Text style={{fontSize:33,textAlign:'center',marginTop:4}}>☾</Text></View>{txt(sign+' · Günün sembolik yorumu',16,true)}{txt(symbolicReading(sign,astronomy),13)}{button('Burcumun tamamını gör ›',()=>setScreen('zodiac'),true)}</>,{marginTop:15})}
    {panel(<>{txt('🔎 Şehir ara',18,true)}<View style={styles.search}><TextInput value={query} onChangeText={setQuery} onSubmitEditing={()=>void searchCity()} returnKeyType="search" placeholder="İstanbul, Ankara, İzmir..." placeholderTextColor={p.sub} style={[styles.input,{backgroundColor:p.input,color:p.text,borderColor:p.line}]}/><Pressable style={[styles.go,{backgroundColor:p.accent}]} onPress={()=>void searchCity()} disabled={busy}><Text style={{color:p.button,fontWeight:'800'}}>Ara</Text></Pressable></View>{button('📍 Konumumu kullan',()=>void locate(),true)}</>,{marginTop:15})}
    {current&&daily&&<><View style={styles.facts}>{fact('🌡️','Hissedilen',num(current.apparent_temperature)+'°')}{fact('💧','Yağış', '%'+num(daily.precipitation_probability_max[0]))}{fact('🍃','Rüzgâr',num(current.wind_speed_10m)+' km/sa')}{fact('☁️','Nem','%'+num(current.relative_humidity_2m))}</View>
-   {panel(<>{txt('🎙️ Günün sesli rehberi',20,true)}<View style={{marginTop:9}}>{txt(narration,14)}</View>{button(speaking?'■ Durdur':'▶ Sesli dinle',()=>void speak())}</>,{marginTop:16})}
+   {panel(<>{txt('🎙️ Günün sesli rehberi',20,true)}<View style={{marginTop:9}}>{txt(narration,14)}</View>{button(voiceLoading==='weather'?'⏳ Ses hazırlanıyor…':activeVoice==='weather'?'■ Durdur':'▶ Doğal sesle dinle',()=>void playVoice('weather'))}{voiceLoading==='weather'&&<ActivityIndicator color={p.accent}/>}</>,{marginTop:16})}
    {panel(<>{txt('Önümüzdeki günler',20,true)}{daily.time.slice(1,5).map((d,i)=><View key={d} style={[styles.forecast,{borderColor:p.line}]}><Text style={{fontSize:23}}>{symbol(daily.weather_code[i+1],dark)}</Text><View style={{flex:1}}>{txt(new Date(d+'T12:00:00').toLocaleDateString('tr-TR',{weekday:'long',day:'numeric',month:'long'}),13,true)}{txt(label(daily.weather_code[i+1])+' · Yağış %'+num(daily.precipitation_probability_max[i+1]),11,false,true)}</View>{txt(num(daily.temperature_2m_min[i+1])+'° / '+num(daily.temperature_2m_max[i+1])+'°',12,true)}</View>)}</>,{marginTop:16})}</>}
   </>}
   {screen==='sky'&&<>{panel(<>{txt('🌙 Ay fazı · '+astronomy.phaseName,23,true)}{txt('Ay aydınlığı: %'+astronomy.illuminated,16)}{txt('Hesaplanan an: '+new Date(astronomy.date).toLocaleString('tr-TR'),12,false,true)}{daily?<View style={styles.facts}>{fact('🌅','Gün doğumu',time(rise))}{fact('🌇','Gün batımı',time(set))}{fact('☀️','UV endeksi',num(daily.uv_index_max[0]))}{fact(symbol(daily.weather_code[0],dark),'Hava',label(daily.weather_code[0]))}</View>:null}</>)}
   {panel(<>{txt('🪐 Gerçek gezegen konumları',22,true)}{txt('Dünya merkezli ekliptik boylam; tropikal zodyak bölümleri. Bir cisme dokunarak ayrıntısını gör.',12,false,true)}
   {astronomy.bodies.map(body=><Pressable key={body.name} accessibilityRole="button" onPress={()=>setSelectedPlanet(selectedPlanet===body.name?null:body.name)} style={[styles.forecast,{borderColor:p.line}]}><Text style={{fontSize:27}}>{body.icon}</Text><View style={{flex:1}}>{txt(body.name,16,true)}{txt(body.sign+' · '+body.degree.toFixed(1)+'°',13,false,true)}{selectedPlanet===body.name&&txt('Ekliptik boylam: '+body.longitude.toFixed(2)+'°. Bu astronomik koordinattır; gökyüzünde görünürlük hava koşullarına bağlıdır.',12)}</View>{txt('›',23,true)}</Pressable>)}
   {button('🔄 Konumları güncelle',()=>setNow(Date.now()),true)}</>,{marginTop:15})}</>}
-  {screen==='zodiac'&&<>{panel(<>{txt('♈ Burç günlüğü',24,true)}{txt('Aşağıdaki konumlar hesaplanmıştır. Astrolojik yorum semboliktir; bilimsel kişisel tahmin değildir.',13,false,true)}<View style={styles.signs}>{SIGNS.map((s,i)=><Pressable accessibilityRole="button" key={s} onPress={()=>setSign(s)} style={[styles.sign,{backgroundColor:s===sign?p.accent:p.input}]}><Text style={{fontSize:26}}>{ICONS[i]}</Text><Text style={{color:s===sign?p.button:p.text,fontWeight:'800'}}>{s}</Text></Pressable>)}</View></>)}{panel(<>{txt(ICONS[SIGNS.indexOf(sign)]+' '+sign+' · Günün gökyüzü',20,true)}{txt(symbolicReading(sign,astronomy),15)}{button('🪐 Konumları incele',()=>setScreen('sky'),true)}</>,{marginTop:15})}</>}
-  {screen==='settings'&&<>{panel(<>{txt('⚙️ Görünüm',22,true)}{txt('Otomatik tema, seçili konumun güneş doğuş ve batış saatlerini izler.',13,false,true)}<View style={styles.nav}>{(['auto','day','night'] as const).map((v)=><Pressable key={v} onPress={()=>setTheme(v)} style={[styles.navItem,{backgroundColor:theme===v?p.accent:p.input}]}><Text style={{color:theme===v?p.button:p.text,fontWeight:'800'}}>{v==='auto'?'Otomatik':v==='day'?'☀️ Gündüz':'🌙 Gece'}</Text></Pressable>)}</View></>)}{panel(<>{txt('🎙️ Seslendirme',22,true)}<View style={styles.switchRow}>{txt('Sesli rehber',15)}<Switch value={voiceEnabled} onValueChange={setVoiceEnabled}/></View>{txt('Cihazdaki Türkçe ses motoru kullanılır. Ses kalitesi cihazdan cihaza değişebilir.',12,false,true)}{button(speaking?'■ Durdur':'▶ Sesi dene',()=>void speak())}</>,{marginTop:15})}{panel(<>{txt('⏰ Hatırlatma tercihi',22,true)}{txt('Seçtiğin saatte günlük yerel hatırlatma gönderilir. Bildirim yeni hava verisi değil, uygulamayı açma hatırlatmasıdır.',13,false,true)}<View style={styles.search}><TextInput keyboardType="number-pad" maxLength={2} accessibilityLabel="Saat" value={hour} onChangeText={setHour} style={[styles.timeInput,{backgroundColor:p.input,color:p.text}]}/>{txt(':',24,true)}<TextInput keyboardType="number-pad" maxLength={2} accessibilityLabel="Dakika" value={minute} onChangeText={setMinute} style={[styles.timeInput,{backgroundColor:p.input,color:p.text}]}/></View>{button(notificationActive?'Hatırlatma saatini güncelle':'Günlük bildirimi aç',()=>{void (async()=>{if(!/^\d{1,2}$/.test(hour)||!/^\d{1,2}$/.test(minute)||Number(hour)>23||Number(minute)>59){Alert.alert('Geçersiz saat','00:00–23:59 arasında bir saat gir.');return;}try{await setDailyNotification(Number(hour),Number(minute));setHour(hour.padStart(2,'0'));setMinute(minute.padStart(2,'0'));setNotificationActive(true);Alert.alert('Bildirim kuruldu', 'Her gün '+hour.padStart(2,'0')+':'+minute.padStart(2,'0')+' saatinde hatırlatma planlandı.');}catch(e){Alert.alert('Bildirim açılamadı',e instanceof Error?e.message:'Bildirim iznini kontrol et.');}})();})}
+  {screen==='zodiac'&&<>{panel(<>{txt('♈ Burç günlüğü',24,true)}{txt('Aşağıdaki konumlar hesaplanmıştır. Astrolojik yorum semboliktir; bilimsel kişisel tahmin değildir.',13,false,true)}<View style={styles.signs}>{SIGNS.map((s,i)=><Pressable accessibilityRole="button" key={s} onPress={()=>setSign(s)} style={[styles.sign,{backgroundColor:s===sign?p.accent:p.input}]}><Text style={{fontSize:26}}>{ICONS[i]}</Text><Text style={{color:s===sign?p.button:p.text,fontWeight:'800'}}>{s}</Text></Pressable>)}</View></>)}{panel(<>{txt(ICONS[SIGNS.indexOf(sign)]+' '+sign+' · Günün gökyüzü',20,true)}{txt(symbolicReading(sign,astronomy),15)}{button(voiceLoading==='astrology'?'⏳ Ses hazırlanıyor…':activeVoice==='astrology'?'■ Durdur':'▶ Astroloji yorumunu dinle',()=>void playVoice('astrology'))}{voiceLoading==='astrology'&&<ActivityIndicator color={p.accent}/>} {button('🪐 Konumları incele',()=>setScreen('sky'),true)}</>,{marginTop:15})}</>}
+  {screen==='settings'&&<>{panel(<>{txt('⚙️ Görünüm',22,true)}{txt('Otomatik tema, seçili konumun güneş doğuş ve batış saatlerini izler.',13,false,true)}<View style={styles.nav}>{(['auto','day','night'] as const).map((v)=><Pressable key={v} onPress={()=>setTheme(v)} style={[styles.navItem,{backgroundColor:theme===v?p.accent:p.input}]}><Text style={{color:theme===v?p.button:p.text,fontWeight:'800'}}>{v==='auto'?'Otomatik':v==='day'?'☀️ Gündüz':'🌙 Gece'}</Text></Pressable>)}</View></>)}{panel(<>{txt('🎙️ Seslendirme',22,true)}<View style={styles.switchRow}>{txt('Sesli rehber',15)}<Switch value={voiceEnabled} onValueChange={setVoiceEnabled}/></View>{txt('Hava durumu ve astroloji için ayrı ElevenLabs Türkçe kadın sesleri kullanılır. Bulut servisi kapalıysa yerel ses isteğe bağlı yedektir.',12,false,true)}{button(voiceLoading==='weather'?'⏳ Ses hazırlanıyor…':activeVoice==='weather'?'■ Hava sesini durdur':'▶ Hava sesini dene',()=>void playVoice('weather'))}{button(voiceLoading==='astrology'?'⏳ Ses hazırlanıyor…':activeVoice==='astrology'?'■ Astroloji sesini durdur':'▶ Astroloji sesini dene',()=>void playVoice('astrology'),true)}</>,{marginTop:15})}{panel(<>{txt('⏰ Hatırlatma tercihi',22,true)}{txt('Seçtiğin saatte günlük yerel hatırlatma gönderilir. Bildirim yeni hava verisi değil, uygulamayı açma hatırlatmasıdır.',13,false,true)}<View style={styles.search}><TextInput keyboardType="number-pad" maxLength={2} accessibilityLabel="Saat" value={hour} onChangeText={setHour} style={[styles.timeInput,{backgroundColor:p.input,color:p.text}]}/>{txt(':',24,true)}<TextInput keyboardType="number-pad" maxLength={2} accessibilityLabel="Dakika" value={minute} onChangeText={setMinute} style={[styles.timeInput,{backgroundColor:p.input,color:p.text}]}/></View>{button(notificationActive?'Hatırlatma saatini güncelle':'Günlük bildirimi aç',()=>{void (async()=>{if(!/^\d{1,2}$/.test(hour)||!/^\d{1,2}$/.test(minute)||Number(hour)>23||Number(minute)>59){Alert.alert('Geçersiz saat','00:00–23:59 arasında bir saat gir.');return;}try{await setDailyNotification(Number(hour),Number(minute));setHour(hour.padStart(2,'0'));setMinute(minute.padStart(2,'0'));setNotificationActive(true);Alert.alert('Bildirim kuruldu', 'Her gün '+hour.padStart(2,'0')+':'+minute.padStart(2,'0')+' saatinde hatırlatma planlandı.');}catch(e){Alert.alert('Bildirim açılamadı',e instanceof Error?e.message:'Bildirim iznini kontrol et.');}})();})}
   {notificationActive&&button('Bildirimleri kapat',()=>{void stopDailyNotification().then(()=>{setNotificationActive(false);Alert.alert('Kapatıldı','Günlük hatırlatma iptal edildi.');}).catch(()=>Alert.alert('Hata','Bildirim kaldırılamadı.'));},true)}</>,{marginTop:15})}</>}
   {busy&&<ActivityIndicator color={p.accent} style={{marginTop:16}}/>}
   <Text style={{color:p.sub,textAlign:'center',fontSize:11,marginTop:25}}>Hava verileri: Open-Meteo · Astroloji notları eğlence amaçlıdır.</Text>
