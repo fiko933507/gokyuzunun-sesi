@@ -154,7 +154,7 @@ export default function App() {
       <Text style={styles.subtitle}>Günün havasını, göğün hikâyesini dinle.</Text>
       <View style={styles.tabs}>
         {([['weather', 'Hava'], ['sky', 'Gökyüzü'], ['settings', 'Saatim']] as const).map(([key, label]) =>
-          <Pressable key={key} onPress={() => setTab(key)} style={[styles.tab, tab === key && styles.activeTab]}><Text style={[styles.tabText, tab === key && styles.activeText]}>{label}</Text></Press>)}
+          <Pressable key={key} onPress={() => setTab(key)} style={[styles.tab, tab === key && styles.activeTab]}><Text style={[styles.tabText, tab === key && styles.activeText]}>{label}</Text></Pressable>)}
       </View>
       {tab === 'weather' && <>
         <View style={styles.hero}>
@@ -166,7 +166,7 @@ export default function App() {
             <Text style={styles.updated}>Son güncelleme {lastUpdated}</Text>
           </> : <Text style={styles.body}>Tahmini görmek için konum izni verip yeniden dene.</Text>}
         </View>
-        {weather && <View style={styles.card}><Text style={styles.cardTitle}>Bugün ne yapmalı?</Text><Text style={styles.body}>{briefing(weather, 0)}</Text><Pressable style={styles.button} onPress={speak}><Text style={styles.buttonText}>Sesli dinle</Text></Press></View>}
+        {weather && <View style={styles.card}><Text style={styles.cardTitle}>Bugün ne yapmalı?</Text><Text style={styles.body}>{briefing(weather, 0)}</Text><Pressable style={styles.button} onPress={speak}><Text style={styles.buttonText}>Sesli dinle</Text></Pressable></View>}
         <Pressable style={styles.outline} onPress={() => void refresh()}><Text style={styles.outlineText}>Tahmini yenile</Text></Pressable>
         {weather?.daily.time.slice(1, 4).map((day, i) => <View style={styles.forecast} key={day}><Text style={styles.forecastDay}>{dayLabel(day)}</Text><Text style={styles.body}>{Math.round(weather.daily.temperature_2m_min[i + 1])}° / {Math.round(weather.daily.temperature_2m_max[i + 1])}° · Yağış %{weather.daily.precipitation_probability_max[i + 1]}</Text></View>)}
       </>}
