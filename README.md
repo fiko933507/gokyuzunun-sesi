@@ -1,17 +1,17 @@
 # Gökyüzünün Sesi
 
-Expo / React Native ile geliştirilmiş Türkçe sesli hava durumu ve gökyüzü uygulaması.
+Gündüz açık ve gece lacivert-mor atmosferde çalışan Türkçe gökyüzü uygulaması.
 
-## Özellikler
-- Open-Meteo üzerinden canlı hava durumu ve 5 günlük tahmin
-- Konum izni veya şehir adıyla arama
-- Konuma göre güneş doğuş/batış saatleri; otomatik gündüz/gece tema
-- Gökyüzü kartları: UV endeksi, yağış, nem, rüzgâr
-- Telefonun Türkçe konuşma motoruyla hava özeti (başlat/durdur)
-- 12 burç için eğlence amaçlı genel notlar
-- Güvenli alan uyumlu, alt menüsüz ekran düzeni
+## İşlevler
+- Gerçek hava verisi ve 5 günlük tahmin: Open-Meteo
+- Konumu kullan / şehir ara: son bilinen konum, izin ve zaman aşımı yönetimi
+- Güneş doğuş-batış zamanlarıyla otomatik tema
+- Astronomy Engine ile gerçek geosentrik ekliptik konum: Güneş, Ay ve 7 gezegen; Ay fazı ve aydınlanma yüzdesi
+- Burç seçimi ve hesaplanan gezegen konumlarına bağlanan, **sembolik** açıklama; kişisel olay tahmini değildir
+- Her gün seçilen saatte yerel hatırlatma, açık/kapalı kontrolü
+- Cihazda bulunan Türkçe konuşma motoruyla hava anlatımı, dinle/durdur
 
-## Çalıştırma
+## Yükleme
 
 ```powershell
 cd "C:\Users\fiko9\gokyuzunun-sesi"
@@ -20,6 +20,10 @@ npm install
 npx expo start --clear
 ```
 
-Node.js 22 ve projenin Expo SDK sürümüyle uyumlu Expo Go kullanın. Bu depoda Expo 58 önizleme sürümü bulunuyor.
+Yeni yerel modüller için gerekirse uygulamanın Android geliştirme derlemesi yapılmalıdır. Bildirim izni verilmelidir.
 
-**Sınırlar:** Otomatik arka plan bildirimleri henüz yoktur; seçilen saat yalnızca saklanır. Seslendirme bulut tabanlı insan sesi değildir ve kalite cihazın Türkçe TTS paketine bağlıdır. Burç notları canlı gezegen hesaplaması değil, eğlence amaçlı sabit metinlerdir. İnternet bağlantısı gerekir.
+## Sınırlar
+- Referans görseldeki foto-gerçekçi 3D Ay, şehir silüeti ve çizilmiş takımyıldız varlıkları henüz bulunmuyor; yeni renkler, gezegen sırası ve burç çarkı ilk görsel uyarlamadır.
+- Günlük yerel bildirim **önceden belirlenmiş hatırlatmadır**; her sabah arka planda yeni hava verisi çekip seslendirme yapmaz. Bu iş için sunucu tabanlı push gerekir.
+- Ses hâlâ cihazın Türkçe TTS motorundan gelir; stüdyo kalitesinde insansı bulut TTS için sağlayıcı ve anahtar gerekir.
+- Ekliptik burç bölümü, takımyıldızı astronomik sınırları ile aynı şey değildir. Astrolojik yorumlar bilimsel öngörü değildir.
