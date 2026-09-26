@@ -60,7 +60,7 @@ async function narration(profile, input, now = new Date(), fetchImpl = fetch) {
     forecast_days:'1',timezone:'auto',
   });
   const response=await fetchImpl('https://api.open-meteo.com/v1/forecast?'+params,{signal:AbortSignal.timeout(12000)});
-  if(!response.ok) throw Object.assign(new Error('Weather service unavailable'),{status:503});
+  if(!response.ok) { console.error(JSON.stringify({event:'weather_upstream_rejected',providerStatus:response.status})); throw Object.assign(new Error('Weather service unavailable'),{status:503}); }
   const w=await response.json();
   if(!w.current || !w.daily?.time?.length) throw Object.assign(new Error('Forecast unavailable'),{status:503});
   const name=placeLabel(input.place);
