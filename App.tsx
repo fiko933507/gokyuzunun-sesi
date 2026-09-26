@@ -168,16 +168,61 @@ function Root(){
  const panel=(content:React.ReactNode,style:object={})=><View style={[styles.panel,{backgroundColor:p.panel,borderColor:p.line},style]}>{content}</View>;
  const button=(text:string,action:()=>void,secondary=false)=><Pressable accessibilityRole="button" onPress={action} style={[styles.button,{backgroundColor:secondary?p.input:p.accent}]}><Text style={{color:secondary?p.text:p.button,fontWeight:'800'}}>{text}</Text></Pressable>;
  const fact=(icon:string,k:string,v:string)=><View style={[styles.fact,{backgroundColor:p.panel,borderColor:p.line}]}><Text style={{fontSize:25}}>{icon}</Text>{txt(k,12,false,true)}{txt(v,16,true)}</View>;
- return <SafeAreaView style={{flex:1,backgroundColor:p.bg}} edges={['top','bottom']}><StatusBar style={dark?'light':'dark'}/><ScrollView keyboardShouldPersistTaps="handled" refreshControl={<RefreshControl refreshing={busy} onRefresh={()=>place?void load(place):void locate()} tintColor={p.accent}/>} contentContainerStyle={styles.page}>
-  <Text style={{color:p.accent,fontSize:11,fontWeight:'900',letterSpacing:2}}>{dark?'✦  ☾  ✧   ✦   ✧   ✦':'☀️   ☁️   ✧   ☁️   ☀️'}</Text>
-  {txt('☾ Gökyüzünün Sesi ✧',30,true)}
-  {txt('Evren hep seninle konuşuyor…',14,false,true)}
-  <View style={styles.nav}>{([['weather','☁️ Hava'],['sky','✨ Gök'],['zodiac','♈ Burç'],['settings','⚙️ Ayar']] as const).map(([id,title])=><Pressable accessibilityRole="button" key={id} onPress={()=>setScreen(id)} style={[styles.navItem,{backgroundColor:screen===id?p.accent:p.input}]}><Text style={{color:screen===id?p.button:p.text,fontSize:12,fontWeight:'800'}}>{title}</Text></Pressable>)}</View>
-  {!!error&&panel(<>{txt('⚠️ '+error,14)}{button('Tekrar dene',()=>place?void load(place):void locate(),true)}</>,{marginBottom:15})}
+ return <SafeAreaView style={{flex:1,backgroundColor:p.bg}} edges={['top','bottom']}>
+  <SkyAtmosphere night={dark}/>
+  <StatusBar style={dark?'light':'dark'}/>
+  <ScrollView keyboardShouldPersistTaps="handled"
+    refreshControl={<RefreshControl refreshing={busy} onRefresh={()=>place?void load(place):void locate()} tintColor={p.accent}/>}
+    contentContainerStyle={styles.page}>
+  <View style={styles.header}>
+    <View style={{flex:1,minWidth:0}}>
+      <Text style={{color:p.accent,fontSize:13,letterSpacing:3,marginBottom:4}}>☾ ✧ ✦</Text>
+      {txt('Gökyüzünün Sesi',29,true)}
+      {txt(dark?'Evren hep seninle konuşuyor…':'Her yeni gün, yeni bir ihtimal…',13,false,true)}
+    </View>
+    <Pressable accessibilityRole="button" accessibilityLabel="Ayarları aç" onPress={()=>setScreen('settings')}
+      style={[styles.headerAction,{backgroundColor:p.panel,borderColor:p.line}]}>
+      <Text style={{color:p.accent,fontSize:25}}>⚙</Text>
+    </Pressable>
+  </View>
+  <View style={[styles.nav,{borderColor:p.line,backgroundColor:p.panel}]}>
+    {([['weather','☀  Bugün'],['sky','♄  Gezegenler'],['zodiac','♈  Burcum']] as const).map(([id,title])=>
+      <Pressable accessibilityRole="button" key={id} onPress={()=>setScreen(id)}
+       style={[styles.navItem,{backgroundColor:screen===id?p.accent:'transparent'}]}>
+       <Text numberOfLines={1} style={{color:screen===id?p.button:p.text,fontSize:12,fontWeight:'800'}}>{title}</Text>
+      </Pressable>)}
+  </View>
+   {!!error&&panel(<>{txt('⚠️ '+error,14)}{button('Tekrar dene',()=>place?void load(place):void locate(),true)}</>,{marginBottom:15})}
   {screen==='weather'&&<>
-   <View style={[styles.hero,{backgroundColor:p.hero,borderColor:p.line,borderWidth:1}]}><Text style={{color:p.accent,letterSpacing:9,textAlign:'center',marginBottom:9}}>✦  ✧  ✦  ·  ✧  ✦</Text>{txt((dark?'✦ ✧ ✦   ':'☀️ ☁️   ')+'📍 '+(place?.name||'Konum belirleniyor'),15,true)}{txt(new Date(now).toLocaleDateString('tr-TR',{day:'numeric',month:'long',year:'numeric',weekday:'long'}),13,false,true)}{txt('🌙 '+astronomy.phaseName+' · %'+astronomy.illuminated+' aydınlık',14,true)}<Text style={{fontSize:80,textAlign:'center',marginVertical:4}}>{dark?'🌕':'🌤️'}</Text>{current&&daily?<><Text style={{fontSize:35,textAlign:'center',marginTop:4}}>{symbol(current.weather_code,dark)}</Text><Text style={{fontSize:70,textAlign:'center',color:p.text,fontWeight:'800'}}>{num(current.temperature_2m)}°</Text><Text style={{fontSize:22,textAlign:'center',color:p.text,fontWeight:'800'}}>{label(current.weather_code)}</Text><Text style={{textAlign:'center',color:p.sub,marginTop:8}}>En düşük {num(daily.temperature_2m_min[0])}° · En yüksek {num(daily.temperature_2m_max[0])}°</Text><Text style={{textAlign:'center',color:p.sub,fontSize:11,marginTop:14}}>Güncelleme: {updated}</Text></>:<View style={{padding:35}}>{busy?<ActivityIndicator color={p.accent}/>:txt('Şehir arayarak başlayabilirsin.')}</View>}</View>
+   <View style={[styles.hero,{backgroundColor:p.hero,borderColor:p.line,borderWidth:1}]}>
+    <Text style={{textAlign:'center',color:p.accent,letterSpacing:5}}>✦    ·   ✧   ·    ✦</Text>
+    <View style={{flexDirection:'row',alignItems:'center',justifyContent:'space-between',marginTop:12}}>
+      <View style={{flex:1,gap:5}}>
+       {txt(new Date(now).toLocaleDateString('tr-TR',{day:'numeric',month:'long',year:'numeric'}),18,true)}
+       {txt(new Date(now).toLocaleDateString('tr-TR',{weekday:'long'}),12,false,true)}
+      </View>
+      <Text style={{fontSize:11,color:p.accent,letterSpacing:2}}>{dark?'YILDIZLI GECE':'GÜNE MERHABA'}</Text>
+    </View>
+    <View style={{alignItems:'center',marginVertical:3}}>
+      <MoonDisc night={dark} phaseName={astronomy.phaseName} illuminated={astronomy.illuminated} size={158}/>
+    </View>
+    <View style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center',gap:10}}>
+      <View style={{flex:1}}>{txt('📍 '+(place?.name||'Konum belirleniyor'),14,true)}{txt(dark?'Gökyüzüne bir dilek bırak.':'Işığın yolunu takip et.',12,false,true)}</View>
+      <View style={{alignItems:'flex-end',flex:1}}>{txt('Ay Fazı',13,false,true)}{txt(astronomy.phaseName,18,true)}{txt('%'+astronomy.illuminated+' aydınlık',13,false,true)}</View>
+    </View>
+    <Text style={{textAlign:'center',color:p.accent,marginTop:10,fontSize:11}}>✧  ✦  ✧</Text>
+   </View>
    {panel(<>{txt('☾ Gökyüzü takvimi',21,true)}{txt('Bugünün hesaplanan gök cisimleri',12,false,true)}<View style={styles.planetStrip}>{astronomy.bodies.slice(1,6).map(body=><Pressable key={body.name} accessibilityRole="button" onPress={()=>{setSelectedPlanet(body.name);setScreen('sky');}} style={styles.miniPlanet}><Text style={{fontSize:24}}>{body.icon}</Text>{txt(body.name,12,true)}{txt(body.sign,11,false,true)}</Pressable>)}</View>{button('Tüm gezegenleri incele ›',()=>setScreen('sky'),true)}</>,{marginTop:15})}
-   {panel(<>{txt('✧ Burç Çarkı',21,true)}<View style={styles.zodiacWheel}><View style={styles.wheelGrid}>{SIGNS.map((name,i)=><Pressable key={name} accessibilityRole="button" onPress={()=>{setSign(name);setScreen('zodiac');}} style={[styles.wheelSign,{backgroundColor:name===sign?p.accent:p.input}]}><Text style={{fontSize:23,color:name===sign?p.button:p.text}}>{ICONS[i]}</Text></Pressable>)}</View><Text style={{fontSize:33,textAlign:'center',marginTop:4}}>☾</Text></View>{txt(sign+' · Günün sembolik yorumu',16,true)}{txt(symbolicReading(sign,astronomy),13)}{button('Burcumun tamamını gör ›',()=>setScreen('zodiac'),true)}</>,{marginTop:15})}
+   {panel(<>
+     {txt('✧ Senin Burcun',21,true)}
+     <ZodiacWheel night={dark} active={Math.max(0,SIGNS.indexOf(sign))} onSelect={i=>setSign(SIGNS[i])}/>
+     <View style={{flexDirection:'row',alignItems:'center',gap:12,marginTop:8}}>
+       <Text style={{fontSize:38,color:p.accent}}>{ICONS[SIGNS.indexOf(sign)]}</Text>
+       <View style={{flex:1}}>{txt(sign,23,true)}{txt('Günün sembolik gökyüzü yorumu',12,false,true)}</View>
+     </View>
+     <View style={{marginTop:10}}>{txt(symbolicReading(sign,astronomy),14)}</View>
+     {button('Burcumun tamamını gör  ›',()=>setScreen('zodiac'),true)}
+   </>,{marginTop:15})}
    {panel(<>{txt('🔎 Şehir ara',18,true)}<View style={styles.search}><TextInput value={query} onChangeText={setQuery} onSubmitEditing={()=>void searchCity()} returnKeyType="search" placeholder="İstanbul, Ankara, İzmir..." placeholderTextColor={p.sub} style={[styles.input,{backgroundColor:p.input,color:p.text,borderColor:p.line}]}/><Pressable style={[styles.go,{backgroundColor:p.accent}]} onPress={()=>void searchCity()} disabled={busy}><Text style={{color:p.button,fontWeight:'800'}}>Ara</Text></Pressable></View>{button('📍 Konumumu kullan',()=>void locate(),true)}</>,{marginTop:15})}
    {current&&daily&&<><View style={styles.facts}>{fact('🌡️','Hissedilen',num(current.apparent_temperature)+'°')}{fact('💧','Yağış', '%'+num(daily.precipitation_probability_max[0]))}{fact('🍃','Rüzgâr',num(current.wind_speed_10m)+' km/sa')}{fact('☁️','Nem','%'+num(current.relative_humidity_2m))}</View>
    {panel(<>{txt('🎙️ Günün sesli rehberi',20,true)}<View style={{marginTop:9}}>{txt(narration,14)}</View>{button(voiceLoading==='weather'?'⏳ Ses hazırlanıyor…':activeVoice==='weather'?'■ Durdur':'▶ Doğal sesle dinle',()=>void playVoice('weather'))}{voiceLoading==='weather'&&<ActivityIndicator color={p.accent}/>}</>,{marginTop:16})}
