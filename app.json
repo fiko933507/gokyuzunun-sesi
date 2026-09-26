@@ -4,7 +4,7 @@
     "slug": "gokyuzunun-sesi",
     "version": "0.1.0",
     "orientation": "portrait",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "android": {
       "package": "com.gokyuzununsesi.app",
       "permissions": [
