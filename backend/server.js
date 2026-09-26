@@ -76,6 +76,9 @@ async function speech(profile) {
           event: 'elevenlabs_rejected', profile,
           providerStatus: upstream.status, providerCode,
         }));
+        if (upstream.status === 402) {
+          throw Object.assign(new Error('ElevenLabs plan or credits do not permit generation'), { status: 402 });
+        }
         throw Object.assign(new Error('Speech provider unavailable'), { status: 502 });
       }
       const data = Buffer.from(await upstream.arrayBuffer());
@@ -112,14 +115,14 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(200, { 'Content-Type': 'audio/mpeg', 'Content-Length': data.length, 'Cache-Control': 'private, max-age=3600', 'X-Content-Type-Options': 'nosniff' });
       return res.end(data);
     } catch (err) {
-      const status = [400, 413, 429, 503].includes(err.status) ? err.status : 502;
+      const status = [400, 402, 413, 429, 503].includes(err.status) ? err.status : 502;
       if (status === 502 && err?.message !== 'Speech provider unavailable') {
         console.error(JSON.stringify({
           event: 'voice_preview_failed', profile: typeof profile === 'string' ? profile : 'unknown',
           reason: err?.name === 'AbortError' ? 'timeout' : err?.code === 'UND_ERR_CONNECT_TIMEOUT' ? 'connection_timeout' : 'unexpected',
         }));
       }
-      return json(res, status, { error: status === 503 ? 'Voice service not configured' : status === 429 ? 'Preview budget reached' : status === 400 ? 'Invalid JSON' : 'Voice could not be generated' });
+      return json(res, status, { error: status === 503 ? 'Voice service not configured' : status === 429 ? 'Preview budget reached' : status === 402 ? 'ElevenLabs account plan or credits do not permit this voice through the API' : status === 400 ? 'Invalid JSON' : 'Voice could not be generated' });
     }
   }
   return json(res, 404, { error: 'Not found' });
