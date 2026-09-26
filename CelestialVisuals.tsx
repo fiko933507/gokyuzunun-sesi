@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { ImageBackground, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 const SIGNS=['♈','♉','♊','♋','♌','♍','♎','♏','♐','♑','♒','♓'];
 const STAR_POINTS=Array.from({length:55},(_,i)=>({
@@ -8,14 +8,10 @@ const STAR_POINTS=Array.from({length:55},(_,i)=>({
  size:i%7===0?3:1.4,
 }));
 export function SkyAtmosphere({night}:{night:boolean}){
- return <View pointerEvents="none" style={[StyleSheet.absoluteFill,{overflow:'hidden',backgroundColor:night?'#100F2B':'#F9DCE1'}]}>
-  <View style={{position:'absolute',top:-155,right:-105,width:390,height:520,borderRadius:260,backgroundColor:night?'#37325E':'#F3ABCF',opacity:night?.38:.65}}/>
-  <View style={{position:'absolute',top:190,left:-125,width:345,height:430,borderRadius:230,backgroundColor:night?'#64406B':'#FFE6BC',opacity:night?.22:.76}}/>
-  <View style={{position:'absolute',bottom:-180,right:-130,width:480,height:400,borderRadius:260,backgroundColor:night?'#363065':'#C4BCEB',opacity:night?.42:.55}}/>
-  {STAR_POINTS.map((point,i)=><View key={i} style={{position:'absolute',top:point.y+'%',left:point.x+'%',width:point.size,height:point.size,borderRadius:3,backgroundColor:night?'#FFF0DB':'#FFFFFF',opacity:night?i%4===0?.98:.38:i%5===0?.9:.38}}/>)}
-  {night?<><Text style={{position:'absolute',top:120,right:26,color:'#F8DAAD',fontSize:19,opacity:.8}}>✦</Text><Text style={{position:'absolute',top:330,left:20,color:'#D7B9FF',fontSize:14,opacity:.7}}>✧</Text></>:
-   <><View style={{position:'absolute',top:120,left:-50,width:210,height:64,borderRadius:65,backgroundColor:'#FFF8F5',opacity:.45}}/><View style={{position:'absolute',top:165,right:-90,width:270,height:75,borderRadius:70,backgroundColor:'#FFF7E9',opacity:.55}}/></>}
- </View>;
+ return <ImageBackground pointerEvents="none" source={night?require('./assets/sky-night.jpg'):require('./assets/sky-day.jpg')}
+   resizeMode="cover" style={StyleSheet.absoluteFill}>
+  <View style={[StyleSheet.absoluteFill,{backgroundColor:night?'rgba(12,8,31,0.18)':'rgba(255,239,244,0.12)'}]}/>
+ </ImageBackground>;
 }
 export function SunDisc({size=158}:{size?:number}){
  return <View accessibilityLabel="Gündüz gökyüzünde güneş ve bulutlar" style={{width:size+52,height:size+38,justifyContent:'center',alignItems:'center',overflow:'hidden'}}>
