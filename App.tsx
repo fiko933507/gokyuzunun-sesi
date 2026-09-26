@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, AppState, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import * as Location from 'expo-location';
@@ -34,6 +34,9 @@ function Root(){
  const [screen,setScreen]=useState<'weather'|'sky'|'zodiac'|'settings'>('weather');
  const [weather,setWeather]=useState<Weather|null>(null);
  const [place,setPlace]=useState<Place|null>(null);
+ const [hydrated,setHydrated]=useState(false);
+ const bootPlaceRef=useRef<Place|null>(null);
+ const lastFetchRef=useRef(0);
  const [query,setQuery]=useState('');
  const [busy,setBusy]=useState(false);
  const [error,setError]=useState('');
@@ -58,10 +61,10 @@ function Root(){
  useEffect(()=>{const id=setInterval(()=>setNow(Date.now()),60000);return()=>clearInterval(id);},[]);
  useEffect(()=>{AsyncStorage.multiGet(['sky.place','sky.settings']).then(values=>{
   const savedPlace=values[0][1],saved=values[1][1];
-  if(savedPlace){const p=JSON.parse(savedPlace) as Place;if(Number.isFinite(p.latitude)&&Number.isFinite(p.longitude))setPlace(p);}
+  if(savedPlace){const p=JSON.parse(savedPlace) as Place;if(Number.isFinite(p.latitude)&&Number.isFinite(p.longitude)){bootPlaceRef.current=p;setPlace(p);}}
   if(saved){const s=JSON.parse(saved);setVoiceEnabled(s.voiceEnabled??true);setSign(s.sign??'Koç');setHour(s.hour??'08');setMinute(s.minute??'00');setTheme(s.theme??'auto');}
- }).catch(()=>{});},[]);
- useEffect(()=>{AsyncStorage.setItem('sky.settings',JSON.stringify({voiceEnabled,sign,hour,minute,theme})).catch(()=>{});},[voiceEnabled,sign,hour,minute,theme]);
+ }).catch(()=>{}).finally(()=>setHydrated(true));},[]);
+ useEffect(()=>{if(hydrated)AsyncStorage.setItem('sky.settings',JSON.stringify({voiceEnabled,sign,hour,minute,theme})).catch(()=>{});},[hydrated,voiceEnabled,sign,hour,minute,theme]);
  const load=useCallback(async(p:Place)=>{
   setBusy(true);setError('');
   try{
@@ -70,7 +73,7 @@ function Root(){
    if(!response.ok)throw new Error('Hava servisine bağlanılamadı.');
    const data=await response.json() as Weather;
    if(!data.current||!data.daily?.sunrise?.length)throw new Error('Bu yer için tahmin bulunamadı.');
-   setWeather(data);setPlace(p);setUpdated(new Date().toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}));await AsyncStorage.setItem('sky.place',JSON.stringify(p));
+   setWeather(data);setPlace(p);lastFetchRef.current=Date.now();setUpdated(new Date().toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}));await AsyncStorage.setItem('sky.place',JSON.stringify(p));
   }catch(e){setError(e instanceof Error?e.message:'Hava bilgisi alınamadı.');}
   finally{setBusy(false);}
  },[]);
@@ -88,7 +91,9 @@ function Root(){
   }catch{setError('Konum belirlenemedi. Şehir adıyla arama yapabilirsin.');}
   finally{setBusy(false);}
  },[load]);
- useEffect(()=>{if(place)void load(place);else void locate();},[]);
+ useEffect(()=>{if(!hydrated)return;if(bootPlaceRef.current)void load(bootPlaceRef.current);else void locate();},[hydrated]);
+ useEffect(()=>{const tick=setInterval(()=>{if(place&&!busy&&Date.now()-lastFetchRef.current>=30*60_000)void load(place);},5*60_000);return()=>clearInterval(tick);},[place,busy,load]);
+ useEffect(()=>{const sub=AppState.addEventListener('change',next=>{if(next==='active'){setNow(Date.now());if(place&&Date.now()-lastFetchRef.current>=15*60_000)void load(place);}});return()=>sub.remove();},[place,load]);
  async function searchCity(){
   if(!query.trim()){setError('Lütfen bir şehir adı yaz.');return;}
   setBusy(true);setError('');
