@@ -17,6 +17,17 @@ export function SkyAtmosphere({night}:{night:boolean}){
    <><View style={{position:'absolute',top:120,left:-50,width:210,height:64,borderRadius:65,backgroundColor:'#FFF8F5',opacity:.45}}/><View style={{position:'absolute',top:165,right:-90,width:270,height:75,borderRadius:70,backgroundColor:'#FFF7E9',opacity:.55}}/></>}
  </View>;
 }
+export function SunDisc({size=158}:{size?:number}){
+ return <View accessibilityLabel="Gündüz gökyüzünde güneş ve bulutlar" style={{width:size+52,height:size+38,justifyContent:'center',alignItems:'center',overflow:'hidden'}}>
+  <View style={{position:'absolute',width:size+32,height:size+32,borderRadius:size,backgroundColor:'#FFF7CA',opacity:.18}}/>
+  <View style={{position:'absolute',width:size+7,height:size+7,borderRadius:size,backgroundColor:'#FFEFAE',opacity:.38}}/>
+  <View style={{width:size*.82,height:size*.82,borderRadius:size,backgroundColor:'#FFF6CB',borderWidth:2,borderColor:'#FFF9EC',shadowColor:'#F9BD85',shadowRadius:30,shadowOpacity:.9,elevation:5}}/>
+  <View style={{position:'absolute',left:1,bottom:25,width:size*.64,height:size*.26,borderRadius:60,backgroundColor:'#FFF8F2',opacity:.94}}/>
+  <View style={{position:'absolute',left:24,bottom:37,width:size*.4,height:size*.3,borderRadius:60,backgroundColor:'#FFF9F5',opacity:.94}}/>
+  <View style={{position:'absolute',right:-7,bottom:35,width:size*.6,height:size*.24,borderRadius:60,backgroundColor:'#F8E2F2',opacity:.92}}/>
+  <View style={{position:'absolute',right:16,bottom:47,width:size*.35,height:size*.25,borderRadius:60,backgroundColor:'#FFF3F9',opacity:.92}}/>
+ </View>;
+}
 export function MoonDisc({night,phaseName,illuminated,size=160}:{night:boolean;phaseName:string;illuminated:number;size?:number}){
  const phase=phaseName.toLocaleLowerCase('tr-TR');
  const emoji=phase.includes('yeni')?'🌑':phase.includes('hilal')?(phase.includes('küçülen')?'🌘':'🌒'):phase.includes('ilk')?'🌓':phase.includes('son')?'🌗':phase.includes('dolunay')?'🌕':phase.includes('küçülen')?'🌖':'🌔';
