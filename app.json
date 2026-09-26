@@ -1,0 +1,26 @@
+{
+  "expo": {
+    "name": "Gökyüzünün Sesi",
+    "slug": "gokyuzunun-sesi",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "android": {
+      "package": "com.gokyuzununsesi.app",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "POST_NOTIFICATIONS"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Bulunduğunuz konumun hava tahminini göstermek için konum kullanılır."
+        }
+      ],
+      "expo-notifications"
+    ]
+  }
+}
