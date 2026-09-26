@@ -37,9 +37,9 @@ export function MoonDisc({night,phaseName,illuminated,size=160}:{night:boolean;p
   </View>
  </View>;
 }
-export function ZodiacWheel({night,active,onSelect}:{night:boolean;active:number;onSelect:(i:number)=>void}){
+export function ZodiacWheel({night,active,onSelect,compact=false}:{night:boolean;active:number;onSelect:(i:number)=>void;compact?:boolean}){
  const {width}=useWindowDimensions();
- const size=Math.min(Math.max(width-68,240),344);
+ const size=compact?Math.min(Math.max((width-40)*.46,142),200):Math.min(Math.max(width-68,240),344);
  const center=size/2,ring=size*.41;
  const gold=night?'#E7BD90':'#976E9D';
  return <View style={{width:size,height:size,alignSelf:'center',justifyContent:'center',alignItems:'center',marginVertical:12}}>
@@ -49,14 +49,15 @@ export function ZodiacWheel({night,active,onSelect}:{night:boolean;active:number
   {Array.from({length:12},(_,i)=><View key={'ray'+i} pointerEvents="none" style={{position:'absolute',width:1,height:size*.15,top:size*.055,left:center,backgroundColor:gold,opacity:.65,transform:[{rotate:i*30+'deg'},{translateY:size*.18}]}}/>)}
   {SIGNS.map((glyph,i)=>{
    const angle=(i*30-90)*Math.PI/180;
-   const x=center+ring*Math.cos(angle)-18,y=center+ring*Math.sin(angle)-18;
+   const glyphSize=compact?27:36;
+   const x=center+ring*Math.cos(angle)-glyphSize/2,y=center+ring*Math.sin(angle)-glyphSize/2;
    return <Pressable accessibilityRole="button" accessibilityLabel={'Burç '+glyph} key={i} onPress={()=>onSelect(i)}
-    style={{position:'absolute',left:x,top:y,width:36,height:36,borderRadius:20,alignItems:'center',justifyContent:'center',backgroundColor:i===active?(night?'#F4D3A7':'#684984'):'transparent'}}>
-    <Text style={{fontSize:26,color:i===active?(night?'#312447':'#FFF1E8'):gold}}>{glyph}</Text>
+    style={{position:'absolute',left:x,top:y,width:glyphSize,height:glyphSize,borderRadius:20,alignItems:'center',justifyContent:'center',backgroundColor:i===active?(night?'#F4D3A7':'#684984'):'transparent'}}>
+    <Text style={{fontSize:compact?18:26,color:i===active?(night?'#312447':'#FFF1E8'):gold}}>{glyph}</Text>
    </Pressable>;
   })}
-  <Text style={{fontSize:50,color:gold}}>☾</Text>
-  <Text style={{color:night?'#D7C5E8':'#8C718F',fontSize:10,letterSpacing:2}}>12 BURÇ</Text>
+  <Text style={{fontSize:compact?32:50,color:gold}}>☾</Text>
+  {!compact&&<Text style={{color:night?'#D7C5E8':'#8C718F',fontSize:10,letterSpacing:2}}>12 BURÇ</Text>}
  </View>;
 }
 const styles=StyleSheet.create({ring:{position:'absolute',aspectRatio:1,borderWidth:1.1,borderRadius:500}});
