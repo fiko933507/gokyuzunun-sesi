@@ -18,13 +18,15 @@ function filename(input:VoiceRequest):string {
  return 'gokyuzu-v3-weather-'+date+'-'+bucket+'-'+String(latitude).replace(/-/g,'m')+'-'+String(longitude).replace(/-/g,'m')+'.mp3';
 }
 export async function getVoiceAudio(input:VoiceRequest):Promise<string>{
- const file=new File(Paths.cache,filename(input));
- if(file.exists && (file.size ?? 0)>128) return file.uri;
+ // Do not reuse a device MP3 after the voice profile changes on the server.
+ // Previously cached male recordings must never bypass server-side validation.
+ const file=new File(Paths.cache,filename(input).replace('.mp3','-'+Date.now()+'.mp3'));
  const response=await expoFetch(API+'/api/narration',{
   method:'POST',headers:{'Content-Type':'application/json'},
   body:JSON.stringify(input),
  });
  if(!response.ok){
+  if(response.status===409)throw new Error('Seçili sunucu sesi kadın sesi olarak doğrulanamadı. Render ayarlarında kayıtlı kadın ses kimliğini güncelle.');
   if(response.status===402)throw new Error('ElevenLabs planı veya kredisi bu sesi kullanmaya izin vermiyor.');
   if(response.status===429)throw new Error('Günlük ses üretim sınırına ulaşıldı. Daha sonra dene.');
   if(response.status===503)throw new Error('Ses veya hava durumu servisi şu anda kullanılamıyor.');
