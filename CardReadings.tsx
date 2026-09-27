@@ -5,6 +5,8 @@ import {DECKS,deckIds,shuffledCards,type Card,type DeckId} from './cardDecks';
 import {getCardReading} from './cardReadingApi';
 
 type Palette={panel:string;line:string;text:string;sub:string;accent:string;input:string;button:string};
+type HistoryEntry={id:string;date:string;deck:DeckId;spread:'daily'|'three';cards:string[];reading:string};
+const HISTORY_KEY='sky.cardHistory';
 export function CardReadings({p}:{p:Palette}){
  const [deck,setDeck]=useState<DeckId>('tarot');
  const [spread,setSpread]=useState<'daily'|'three'>('daily');
@@ -14,6 +16,9 @@ export function CardReadings({p}:{p:Palette}){
  const [reading,setReading]=useState('');
  const [error,setError]=useState('');
  const [loading,setLoading]=useState(false);
+ const [history,setHistory]=useState<HistoryEntry[]>([]);
+ const [historyOpen,setHistoryOpen]=useState(false);
+ useEffect(()=>{AsyncStorage.getItem(HISTORY_KEY).then(raw=>{if(raw){const entries=JSON.parse(raw);if(Array.isArray(entries))setHistory(entries.slice(0,30));}}).catch(()=>{});},[]);
  const date=new Date().toLocaleDateString('sv-SE');
  const dailyKey='sky.dailyCard.'+deck+'.'+date;
  useEffect(()=>{
@@ -33,7 +38,12 @@ export function CardReadings({p}:{p:Palette}){
  function restart(){setChoices(shuffledCards(deck).slice(0,7));setSelected([]);setReading('');setError('');}
  async function interpret(){
   setLoading(true);setError('');
-  try{setReading(await getCardReading(deck,spread,selected,question));}
+  try{
+   const result=await getCardReading(deck,spread,selected,question);
+   setReading(result);
+   const record:HistoryEntry={id:Date.now()+'-'+Math.random(),date:new Date().toLocaleString('tr-TR'),deck,spread,cards:selected.map(card=>card.id),reading:result};
+   setHistory(previous=>{const next=[record,...previous].slice(0,30);void AsyncStorage.setItem(HISTORY_KEY,JSON.stringify(next));return next;});
+  }
   catch(e){setError(e instanceof Error?e.message:'Yorum alınamadı.');}
   finally{setLoading(false);}
  }
@@ -53,6 +63,8 @@ export function CardReadings({p}:{p:Palette}){
   {!!error&&<Text style={{color:p.text,fontSize:13}}>{error}</Text>}
   {!!reading&&<View style={{padding:16,borderRadius:18,borderWidth:1,...line,...cardBackground}}><Text style={{color:p.accent,fontSize:20,fontFamily:'serif',marginBottom:9}}>Gökyüzünden bir yorum</Text><Text style={{color:p.text,fontSize:15,lineHeight:24}}>{reading}</Text></View>}
   {spread==='three'&&selected.length>0&&<Pressable accessibilityRole="button" onPress={restart} style={{padding:12,alignItems:'center'}}><Text style={{color:p.accent,fontWeight:'700'}}>Kartları yeniden karıştır</Text></Pressable>}
-  <Text style={{color:p.sub,fontSize:11,lineHeight:17}}>Bu kartlar ve yapay zekâ yorumları yalnızca eğlence amaçlıdır; gelecek hakkında kesin bilgi vermez. Yazdığın soru yorum oluşturmak için sunucuya gönderilir; soru yazmak zorunda değilsin.</Text>
+  <Pressable accessibilityRole="button" onPress={()=>setHistoryOpen(!historyOpen)} style={{paddingVertical:12,borderTopWidth:1,...line}}><Text style={{color:p.accent,fontSize:17,fontWeight:'700'}}>☾ Kart geçmişim ({history.length}) {historyOpen?'⌄':'›'}</Text></Pressable>
+  {historyOpen&&history.map(item=><View key={item.id} style={{padding:13,borderRadius:17,borderWidth:1,...line,...cardBackground}}><Text style={{color:p.sub,fontSize:11}}>{item.date} · {DECKS[item.deck]?.title} · {item.spread==='daily'?'Günün kartı':'Üç kart'}</Text><Text style={{color:p.text,fontWeight:'700',marginVertical:7}}>{item.cards.map(id=>DECKS[item.deck]?.cards.find(card=>card.id===id)?.name||id).join(' · ')}</Text><Text style={{color:p.text,lineHeight:21}}>{item.reading}</Text><Pressable accessibilityRole="button" onPress={()=>{setHistory(prev=>{const next=prev.filter(entry=>entry.id!==item.id);void AsyncStorage.setItem(HISTORY_KEY,JSON.stringify(next));return next;});}} style={{alignSelf:'flex-end',padding:8}}><Text style={{color:p.accent}}>Kaydı sil</Text></Pressable></View>)}
+  <Text style={{color:p.sub,fontSize:11,lineHeight:17}}>Kartlar ve yapay zekâ yorumları yalnızca eğlence amaçlıdır; gelecek hakkında kesin bilgi vermez. Yazdığın soru sunucuya gönderilir; ayrı bir alan olarak geçmişe kaydedilmez. Yorum metninde sorunun geçebileceğini unutma. Başarılı yorumlar yalnızca bu cihazda saklanır.</Text>
  </View>;
 }
