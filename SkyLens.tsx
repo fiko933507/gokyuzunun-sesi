@@ -14,7 +14,9 @@ export function SkyLens({latitude,longitude,place,dark}:{latitude:number;longitu
  useEffect(()=>{const t=setInterval(()=>setClock(Date.now()),60_000);return()=>clearInterval(t);},[]);
  useEffect(()=>{
   let active=true;let subscription:Location.LocationSubscription|undefined;
-  Location.watchHeadingAsync(h=>{if(active)setHeading(h.trueHeading>=0?h.trueHeading:h.magHeading);},()=>{}).then(s=>{if(active)subscription=s;else s.remove();}).catch(()=>{});
+  Location.requestForegroundPermissionsAsync().then(permission=>{
+   if(permission.granted)return Location.watchHeadingAsync(h=>{if(active)setHeading(h.trueHeading>=0?h.trueHeading:h.magHeading);}).then(s=>{if(active)subscription=s;else s.remove();});
+  }).catch(()=>{});
   return()=>{active=false;subscription?.remove();};
  },[]);
  const objects=useMemo(()=>{
