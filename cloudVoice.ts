@@ -12,8 +12,9 @@ export async function getVoiceProfileStatus():Promise<Record<VoiceProfile,string
 }
 
 export type WeatherSnapshot = {temp:number;feels:number;wind:number;code:number;min:number;max:number;rain:number;sunrise:string;sunset:string};
-export type VoiceRequest = { profile:'weather';latitude:number;longitude:number;place:string;weatherSnapshot:WeatherSnapshot } |
- { profile:'astrology'; sign:string };
+type VoiceOptions={duration?:'brief'|'full';pace?:'calm'|'normal'};
+export type VoiceRequest = ({ profile:'weather';latitude:number;longitude:number;place:string;weatherSnapshot:WeatherSnapshot } |
+ { profile:'astrology'; sign:string }) & VoiceOptions;
 function filename(input:VoiceRequest):string {
  const date=new Date().toISOString().slice(0,10);
  if(input.profile==='astrology'){
