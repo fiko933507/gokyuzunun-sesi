@@ -2,6 +2,7 @@
 const http = require('node:http');
 const { narration } = require('./narration');
 const { generateCardReading } = require('./cardReading');
+const { observationNarration } = require('./observation');
 
 const PORT = Number(process.env.PORT) || 10000;
 const KEY = process.env.ELEVENLABS_API_KEY;
@@ -166,6 +167,17 @@ const server = http.createServer(async (req, res) => {
         genderLabel: verified?.gender || 'missing', voiceName: verified?.name || '' });
     }
     return json(res, 200, { profiles });
+  }
+  if(req.method==='POST'&&path==='/api/observation-audio'){
+    if(!rateLimit(req))return json(res,429,{error:'Too many requests'});
+    let body='';
+    try{
+      for await(const chunk of req){body+=chunk;if(body.length>1024)return json(res,413,{error:'Request too large'});}
+      const plan=observationNarration(JSON.parse(body));
+      const data=await speech('astrology',plan.text,plan.cacheKey);
+      res.writeHead(200,{'Content-Type':'audio/mpeg','Content-Length':data.length,'Cache-Control':'private, max-age=3600','X-Content-Type-Options':'nosniff'});
+      return res.end(data);
+    }catch(err){return json(res,[400,402,409,429,503].includes(err.status)?err.status:502,{error:err.status===409?'Configured voice is not verified female':'Observation audio unavailable'});}
   }
   if (req.method === 'POST' && (path === '/api/voice-preview' || path === '/api/narration')) {
     if (!rateLimit(req)) return json(res, 429, { error: 'Too many requests' });
