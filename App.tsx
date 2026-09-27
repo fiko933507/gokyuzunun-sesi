@@ -6,7 +6,7 @@ import * as Location from 'expo-location';
 import * as Speech from 'expo-speech';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
-import { getVoiceAudio, getVoiceProfileStatus } from './cloudVoice';
+import { getVoiceAudio, getVoiceProfileStatus, getObservationAudio } from './cloudVoice';
 import { File, Paths } from 'expo-file-system';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Sharing from 'expo-sharing';
@@ -16,6 +16,7 @@ const {captureRef}=require('react-native-view-shot') as {captureRef:(target:unkn
 import type { VoiceProfile } from './voiceConfig';
 import { skyAt, symbolicReading } from './astronomy';
 import { skyViewingWindows, moonCalendar } from './skyDiscovery';
+import {observationPlan,skyEvents,type AirForecast} from './observationPlan';
 import { SkyLens } from './SkyLens';
 import { CardReadings } from './CardReadings';
 import { MoonDisc, SkyAtmosphere, SunDisc, ZodiacWheel } from './CelestialVisuals';
@@ -42,8 +43,10 @@ const time=(s?:string)=>s?.split('T')[1]?.slice(0,5)||'—';
 const num=(n?:number)=>Number.isFinite(n)?String(Math.round(n!)):'—';
 function currentIsNight(w:Weather){return w.current.is_day!==1;}
 function Root(){
- const [screen,setScreen]=useState<'weather'|'sky'|'zodiac'|'journal'|'settings'|'moon'|'lens'|'cards'>('weather');
+ const [screen,setScreen]=useState<'weather'|'sky'|'zodiac'|'journal'|'settings'|'moon'|'lens'|'cards'|'observation'|'events'>('weather');
  const [weather,setWeather]=useState<Weather|null>(null);
+ const [air,setAir]=useState<AirForecast|null>(null);
+ const [airError,setAirError]=useState(false);
  const [place,setPlace]=useState<Place|null>(null);
  const [locationMode,setLocationMode]=useState<'gps'|'city'>('gps');
  const [hydrated,setHydrated]=useState(false);
@@ -53,8 +56,8 @@ function Root(){
  const [busy,setBusy]=useState(false);
  const [error,setError]=useState('');
  const [speaking,setSpeaking]=useState(false);
- const [voiceLoading,setVoiceLoading]=useState<VoiceProfile|null>(null);
- const [activeVoice,setActiveVoice]=useState<VoiceProfile|null>(null);
+ const [voiceLoading,setVoiceLoading]=useState<VoiceProfile|'observation'|null>(null);
+ const [activeVoice,setActiveVoice]=useState<VoiceProfile|'observation'|null>(null);
  const voiceRequestId=useRef(0);
  const player=useAudioPlayer(null);
  const playback=useAudioPlayerStatus(player);
@@ -125,6 +128,13 @@ function Root(){
   finally{setBusy(false);}
  },[load]);
  useEffect(()=>{if(!hydrated)return;if(locationMode==='city'&&bootPlaceRef.current)void load(bootPlaceRef.current,'city');else void locate();},[hydrated]);
+ useEffect(()=>{
+  if(!place)return;
+  const controller=new AbortController();setAir(null);setAirError(false);
+  const params=new URLSearchParams({latitude:String(place.latitude),longitude:String(place.longitude),hourly:'european_aqi,pm2_5,aerosol_optical_depth',timezone:'auto',forecast_days:'3'});
+  fetch('https://air-quality-api.open-meteo.com/v1/air-quality?'+params,{signal:controller.signal}).then(async response=>{if(!response.ok)throw new Error('air');return response.json();}).then(data=>{if(!controller.signal.aborted)setAir(data as AirForecast);}).catch(()=>{if(!controller.signal.aborted)setAirError(true);});
+  return()=>controller.abort();
+ },[place?.latitude,place?.longitude]);
  useEffect(()=>{const tick=setInterval(()=>{if(place&&!busy&&Date.now()-lastFetchRef.current>=30*60_000){if(locationMode==='gps')void locate();else void load(place,'city');}},5*60_000);return()=>clearInterval(tick);},[place,busy,locationMode,load,locate]);
  useEffect(()=>{const sub=AppState.addEventListener('change',next=>{if(next==='active'){setNow(Date.now());if(place&&Date.now()-lastFetchRef.current>=15*60_000){if(locationMode==='gps')void locate();else void load(place,'city');}}});return()=>sub.remove();},[place,locationMode,load,locate]);
  useEffect(()=>{
@@ -199,6 +209,8 @@ function Root(){
  const current=weather?.current,daily=weather?.daily;
  const forecastHours=weather?.hourly?.time.map((date,i)=>({date,instant:Date.parse(date+'Z')-(weather.utc_offset_seconds??0)*1000,rain:weather.hourly.precipitation_probability[i],temp:weather.hourly.temperature_2m[i],code:weather.hourly.weather_code[i]})).filter(h=>Number.isFinite(h.instant)&&h.instant>=now-60*60_000).slice(0,12)??[];
  const viewing=weather?.hourly?skyViewingWindows(weather.hourly,weather.utc_offset_seconds??0,now,set,rise):[];
+ const plan=place&&weather?.hourly?observationPlan(weather.hourly,weather.utc_offset_seconds??0,place.latitude,place.longitude,now,set,rise,air??undefined):null;
+ const events=useMemo(()=>skyEvents(now),[new Date(now).toDateString()]);
  const moonDays=useMemo(()=>moonCalendar(new Date(now),21),[new Date(now).toDateString()]);
  const nextRain=forecastHours.find(h=>h.rain>=50);
  const rainChance=daily?.precipitation_probability_max[0]??0;
@@ -238,6 +250,33 @@ function Root(){
   }finally{
    if(token===voiceRequestId.current)setVoiceLoading(null);
   }
+ }
+ async function playObservation(){
+  if(!voiceEnabled){Alert.alert('Ses kapalı','Ayarlar bölümünden sesli rehberi aç.');return;}
+  if(activeVoice==='observation'||voiceLoading==='observation'){voiceRequestId.current++;player.pause();setActiveVoice(null);setVoiceLoading(null);return;}
+  if(!plan||!place||!weather){Alert.alert('Gözlem planı bulunamadı','Önce konumun hava tahminini yükle.');return;}
+  const token=++voiceRequestId.current;player.pause();setActiveVoice(null);setVoiceLoading('observation');
+  try{
+   const uri=await getObservationAudio({place:place.name,latitude:place.latitude,longitude:place.longitude,instant:plan.instant,offsetSeconds:weather.utc_offset_seconds??0,score:plan.score,cloud:Math.round(plan.cloud),rain:Math.round(plan.rain),targets:plan.targets.slice(0,3).map(x=>({name:x.name,azimuth:x.azimuth,altitude:x.altitude}))});
+   if(token!==voiceRequestId.current)return;
+   await setAudioModeAsync({playsInSilentMode:true});player.replace({uri});player.play();setActiveVoice('observation');
+  }catch(e){if(token===voiceRequestId.current)Alert.alert('Rehber sesi açılamadı',e instanceof Error?e.message:'Ses servisi kullanılamıyor.');}
+  finally{if(token===voiceRequestId.current)setVoiceLoading(null);}
+ }
+ async function shareObservationCalendar(){
+  if(!plan||!place)return;
+  try{
+   if(!await Sharing.isAvailableAsync())throw new Error('Paylaşım bu cihazda kullanılamıyor.');
+   const stamp=(ms:number)=>new Date(ms).toISOString().replace(/[-:]/g,'').replace(/\.\d{3}/,'');
+   const safePlace=place.name.replace(/[\\;,\n\r]/g,' ').slice(0,40);
+   const ics=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Gokyuzunun Sesi//Gozlem Plani//TR','BEGIN:VEVENT',
+    'UID:gokyuzu-'+plan.instant+'-'+Math.round(place.latitude*1000)+'@gokyuzunun-sesi',
+    'DTSTAMP:'+stamp(Date.now()),'DTSTART:'+stamp(plan.instant),'DTEND:'+stamp(plan.instant+3600000),
+    'SUMMARY:Gece gokyuzu gozlemi','DESCRIPTION:'+safePlace+' icin tahmini gozlem plani. Hava durumunu yeniden kontrol et.',
+    'END:VEVENT','END:VCALENDAR',''].join('\r\n');
+   const file=new File(Paths.cache,'gokyuzu-gozlem-'+Date.now()+'.ics');file.create();await file.write(ics);
+   await Sharing.shareAsync(file.uri,{mimeType:'text/calendar',dialogTitle:'Gözlem saatini takvime aktar'});
+  }catch(e){Alert.alert('Takvim dosyası paylaşılamadı',e instanceof Error?e.message:'Paylaşım hatası.');}
  }
  useEffect(()=>{if(playback.didJustFinish){setActiveVoice(null);}},[playback.didJustFinish]);
  useEffect(()=>()=>{voiceRequestId.current++;player.pause();void Speech.stop();},[player]);
@@ -333,6 +372,8 @@ function Root(){
      {txt('✦ Bu Gece Gökyüzü Görülür mü?',19,true)}
      {viewing.length?viewing.map(window=><View key={window.time} style={[styles.forecast,{borderColor:p.line}]}><View style={{flex:1}}>{txt(new Date(window.time+'Z').toLocaleDateString('tr-TR',{weekday:'short',day:'numeric',month:'short',timeZone:'UTC'})+' · '+time(window.time),14,true)}{txt('Bulut %'+num(window.cloud)+' · Yağış %'+num(window.rain)+' · Görüş '+(window.visibility/1000).toFixed(1)+' km',11,false,true)}</View>{txt('%'+window.score,20,true)}</View>):txt(weather?'Bulut, görüş veya gece saatleri için yeterli tahmin bulunamadı.':'Hava tahmini yükleniyor.',13,false,true)}
      {txt('Puan tahmini bulut, yağış ve görüşe dayanır; gerçek gözlemi veya ışık kirliliğini ölçmez.',11,false,true)}
+     {plan&&txt('En uygun saat: '+time(plan.time)+' · Ay ışığı %'+plan.moonlight+(plan.optical!==null?' · Pus göstergesi '+plan.optical.toFixed(2):''),12,true)}
+     {button('✦ Bu gece nereye bakayım?',()=>setScreen('observation'))}
      {button('☽ Gökyüzüne tut',()=>setScreen('lens'),true)}
    </>,{marginTop:15})}
    {current&&daily&&panel(<>
@@ -369,6 +410,8 @@ function Root(){
       </Pressable>)}
       {button('🔄 Konumları güncelle',()=>setNow(Date.now()),true)}
       {button('☾ Ay takvimini aç',()=>setScreen('moon'),true)}
+      {button('✧ Gök olayları takvimi',()=>setScreen('events'),true)}
+      {button('✦ Gözlem planımı gör',()=>setScreen('observation'),true)}
       {button('✦ Gökyüzüne tut',()=>setScreen('lens'),true)}
     </>,{marginTop:15})}
   </>}
@@ -383,6 +426,30 @@ function Root(){
     {button('‹ Gezegenlere dön',()=>setScreen('sky'),true)}
   </>)}
   {screen==='cards'&&panel(<CardReadings p={p}/>)}
+  {screen==='observation'&&<>{panel(<>
+    {txt('✦ Bu Gece Nereye Bakayım?',22,true)}
+    {!plan?txt('Konum ve gece hava tahmini bekleniyor. Tahmin gelince gözlem planı burada görünecek.',13,false,true):<>
+     {txt(place?.name+' · '+new Date(plan.instant).toLocaleString('tr-TR',{day:'numeric',month:'long',hour:'2-digit',minute:'2-digit'}),15,true)}
+     {txt('Gözlem puanı %'+plan.score+' · Bulut %'+num(plan.cloud)+' · Yağış %'+num(plan.rain)+' · Ay ışığı %'+plan.moonlight,13,false,true)}
+     {plan.optical!==null&&txt('Pus göstergesi '+plan.optical.toFixed(2)+'; yüksek değer görüşü azaltabilir.',12,false,true)}
+     {plan.targets.length?plan.targets.map(target=><View key={target.name} style={[styles.forecast,{borderColor:p.line}]}><Text style={{color:p.accent,fontSize:27}}>{target.icon}</Text><View style={{flex:1}}>{txt(target.name,16,true)}{txt(target.direction+' · '+target.azimuth+'° yön · ufuktan '+target.altitude+'° yukarı',12,false,true)}</View></View>):txt('Bu saatte Ay ve listelenen parlak gezegenler ufkun yeterince üzerinde değil.',13,false,true)}
+     {button(voiceLoading==='observation'?'Ses hazırlanıyor…':activeVoice==='observation'?'■ Rehberi durdur':'▶ Sesli gözlem rehberini dinle',()=>void playObservation())}
+     {button('☷ Gözlem saatini takvim dosyası olarak paylaş',()=>void shareObservationCalendar(),true)}
+     {button('✦ Gökyüzüne tut',()=>setScreen('lens'),true)}
+     {txt('Pusula yönü yaklaşık değerdir. Hava tahmini ve ışık kirliliği gerçek gözlemi değiştirebilir.',11,false,true)}
+    </>}
+  </>)}{panel(<>
+    {txt('☾ Gece Havası',20,true)}
+    {plan?.aqi!==null&&plan?.aqi!==undefined?txt('Avrupa hava kalitesi endeksi: '+num(plan.aqi),13,true):txt(airError?'Hava kalitesi servisine ulaşılamadı.':'Bu saat için hava kalitesi verisi bekleniyor veya bulunamadı.',12,false,true)}
+    {plan?.pm25!==null&&plan?.pm25!==undefined&&txt('PM2.5: '+plan.pm25.toFixed(1)+' µg/m³',12)}
+    {txt('Hava kalitesi ölçüsü ve pus tahmini farklı verilerdir. Kaynak: Open-Meteo / CAMS.',11,false,true)}
+  </>,{marginTop:15})}</>}
+  {screen==='events'&&panel(<>
+    {txt('✧ Gök Olayları Takvimi',22,true)}
+    {txt('Ay evreleri hesaplanır; meteor geceleri 2026–2027 American Meteor Society takvimindeki beklenen zirvelerdir. Görünürlük bulunduğun yere ve havaya bağlıdır.',12,false,true)}
+    {events.slice(0,18).map(event=><View key={event.id} style={[styles.forecast,{borderColor:p.line}]}><Text style={{fontSize:26,color:p.accent}}>{event.title.includes('Ay')?'☾':'✦'}</Text><View style={{flex:1}}>{txt(event.title,15,true)}{txt(new Date(event.instant).toLocaleString('tr-TR',{day:'numeric',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'}),12,false,true)}{txt(event.detail+' Kaynak: '+event.source,11,false,true)}</View></View>)}
+    {button('‹ Gezegenlere dön',()=>setScreen('sky'),true)}
+  </>)}
   {screen==='zodiac'&&<>
     {panel(<>
       {txt('✧ Burç Çarkı',24,true)}
