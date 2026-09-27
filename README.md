@@ -5,6 +5,11 @@ Gündüz açık ve gece lacivert-mor atmosferde çalışan Türkçe gökyüzü u
 ## İşlevler
 - Gerçek hava verisi ve 5 günlük tahmin: Open-Meteo
 - Saatlik sıcaklık, yağış olasılığı ve hava simgesi; yaklaşan yağış saati ve günlük gökyüzü özeti
+- Bu gece gökyüzü gözlemi: saatlik bulutluluk, yağış ve görüş verileriyle üç uygun saat (tahmin puanı)
+- Önümüzdeki 21 günün Ay takvimi ve konuma göre gezegen yönlerini gösteren kamera/pusula görünümü
+- Günlüğe kamerayla çekilmiş fotoğraf ekleme; fotoğraf cihazın uygulama klasöründe tutulur
+- Hava ve Ay bilgilerini görsel kart olarak telefonun paylaşım menüsüne gönderme
+- Sesli yorum için kısa/tam anlatım ve normal/sakin tempo; seçilen dinleme saatinde günlük hatırlatma
 - Ayarlardan favori şehir kaydı ve tek dokunuşla geçiş (en çok 12 şehir)
 - Gökyüzü günlüğü: ruh hâli, not, konum ve Ay evresi yalnızca cihazda saklanır; kayıtlar silinebilir
 - Kullanıcının seçtiği yağış ve soğuk eşiklerinde yaklaşan 36 saat için yerel uyarılar
@@ -38,3 +43,4 @@ Ekranda `Gökyüzü Takvimi` görünmüyorsa Metro'yu kapatıp yeniden `npx expo
 - Free plan lisansı ticari olmayan kullanıma bağlı olabilir; mağazaya ticari sürüm yayımlamadan önce uygun ElevenLabs planı/lisansı doğrulanmalıdır.
 - Deneme backend'i günlük en fazla 12 üretim isteğiyle ve süreç belleği önbelleğiyle sınırlandırılmıştır; servis yeniden başladığında limit sıfırlanır. Yaygın kullanımdan önce kullanıcı kimliği, kalıcı kota ve maliyet kontrolleri eklenmelidir.
 - Ekliptik burç bölümü, takımyıldızı astronomik sınırları ile aynı şey değildir. Astrolojik yorumlar bilimsel öngörü değildir.
+- Gökyüzüne Tut gerçek artırılmış gerçeklik kalibrasyonu yapmaz: pusulaya göre yaklaşık yön verir. Gece gözlem puanı ışık kirliliğini veya gerçek görüşü ölçmez.
