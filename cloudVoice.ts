@@ -48,3 +48,11 @@ export async function getVoiceAudio(input:VoiceRequest):Promise<string>{
  await file.write(bytes);
  return file.uri;
 }
+export type ObservationAudioRequest={place:string;latitude:number;longitude:number;instant:number;offsetSeconds:number;score:number;cloud:number;rain:number;targets:{name:string;azimuth:number;altitude:number}[]};
+export async function getObservationAudio(input:ObservationAudioRequest):Promise<string>{
+ const response=await expoFetch(API+'/api/observation-audio',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(input)});
+ if(!response.ok)throw new Error(response.status===409?'Astroloji için kayıtlı ses kadın sesi olarak doğrulanamadı.':response.status===429?'Ses sınırına ulaşıldı.':'Gözlem seslendirmesi şu anda kullanılamıyor (HTTP '+response.status+').');
+ if(!(response.headers.get('content-type')||'').includes('audio/mpeg'))throw new Error('Beklenmeyen ses yanıtı.');
+ const bytes=await response.bytes();if(bytes.length<128||bytes.length>5_000_000)throw new Error('Ses boyutu geçersiz.');
+ const file=new File(Paths.cache,'gokyuzu-gozlem-'+Date.now()+'.mp3');file.create();await file.write(bytes);return file.uri;
+}
