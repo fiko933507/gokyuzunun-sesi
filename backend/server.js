@@ -1,6 +1,7 @@
 // Server-side ElevenLabs proxy. Never expose ELEVENLABS_API_KEY to a mobile client.
 const http = require('node:http');
 const { narration } = require('./narration');
+const { generateCardReading } = require('./cardReading');
 
 const PORT = Number(process.env.PORT) || 10000;
 const KEY = process.env.ELEVENLABS_API_KEY;
@@ -25,6 +26,8 @@ const requests = new Map();
 const voiceGenderCache = new Map();
 let generatedToday = 0;
 let currentDay = new Date().toISOString().slice(0, 10);
+let cardRequestsToday = 0;
+let cardDay = new Date().toISOString().slice(0, 10);
 
 function json(res, status, payload) {
   const body = Buffer.from(JSON.stringify(payload));
@@ -128,7 +131,27 @@ async function requireFemaleVoice(id) {
 const server = http.createServer(async (req, res) => {
   const path = (req.url || '').split('?')[0];
   if (req.method === 'GET' && path === '/health') {
-    return json(res, 200, { ok: true, service: 'gokyuzunun-sesi-api', voiceConfigured: !!KEY, profilesConfigured: { weather: !!VOICES.weather.id, astrology: !!VOICES.astrology.id } });
+    return json(res, 200, { ok: true, service: 'gokyuzunun-sesi-api', voiceConfigured: !!KEY, cardReadingConfigured: !!process.env.OPENAI_API_KEY, profilesConfigured: { weather: !!VOICES.weather.id, astrology: !!VOICES.astrology.id } });
+  }
+  if(req.method==='POST' && path==='/api/card-reading'){
+    if(!rateLimit(req))return json(res,429,{error:'Too many requests'});
+    let body='';
+    try{
+      for await(const chunk of req){body+=chunk;if(body.length>1200)return json(res,413,{error:'Request too large'});}
+      const input=JSON.parse(body);
+      const today=new Date().toISOString().slice(0,10);
+      if(today!==cardDay){cardDay=today;cardRequestsToday=0;}
+      if(cardRequestsToday>=30)return json(res,429,{error:'Daily reading budget reached'});
+      // Validate input before spending the daily budget or sending any user text upstream.
+      require('./cardReading').validate(input);
+      if(!process.env.OPENAI_API_KEY)return json(res,503,{error:'AI service not configured'});
+      cardRequestsToday++;
+      const reading=await generateCardReading(input);
+      return json(res,200,{reading,disclaimer:'Eğlence amaçlı sembolik yorumdur.'});
+    }catch(error){
+      const status=[400,413,429,503].includes(error.status)?error.status:503;
+      return json(res,status,{error:status===400?'Invalid reading':status===429?'Reading budget reached':'AI reading unavailable'});
+    }
   }
   if (req.method === 'GET' && path === '/api/voice-profiles') {
     const profiles = [];
