@@ -35,3 +35,12 @@ test('uses bounded on-device forecast when upstream rate limits the server',asyn
  assert.match(output.text,/Şemsiyeni/);
  await assert.rejects(narration('weather',{...input,weatherSnapshot:{...input.weatherSnapshot,temp:'injected'}},new Date(),async()=>({ok:false,status:429})),{status:503});
 });
+test('narration preferences change content, pacing, and cache identity',async()=>{
+ const date=new Date('2026-09-27T07:00:00Z');
+ const full=await narration('astrology',{sign:'Koç'},date);
+ const brief=await narration('astrology',{sign:'Koç',duration:'brief',pace:'calm'},date);
+ assert.ok(brief.text.length<full.text.length);
+ assert.notEqual(brief.cacheKey,full.cacheKey);
+ assert.equal(brief.pace,'calm');
+ await assert.rejects(narration('astrology',{sign:'Koç',pace:'fast'},date),{status:400});
+});
