@@ -8,16 +8,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { getVoiceAudio, getVoiceProfileStatus, getObservationAudio } from './cloudVoice';
 import { File, Paths } from 'expo-file-system';
-import { CameraView, useCameraPermissions } from 'expo-camera';
-import * as Sharing from 'expo-sharing';
-// SDK 58 resolves this package's React Native source, whose upstream TypeScript
-// annotations are incompatible with RN 0.88; load the runtime API directly.
-const {captureRef}=require('react-native-view-shot') as {captureRef:(target:unknown,options:object)=>Promise<string>};
+import type { CameraView } from 'expo-camera';
 import type { VoiceProfile } from './voiceConfig';
 import { skyAt, symbolicReading } from './astronomy';
 import { skyViewingWindows, moonCalendar } from './skyDiscovery';
 import {observationPlan,skyEvents,type AirForecast} from './observationPlan';
-import { SkyLens } from './SkyLens';
 import { CardReadings } from './CardReadings';
 import { MoonDisc, SkyAtmosphere, SunDisc, ZodiacWheel } from './CelestialVisuals';
 import { dailyNotificationEnabled, setDailyNotification, stopDailyNotification, scheduleWeatherAlerts, stopWeatherAlerts } from './notifications';
@@ -78,7 +73,9 @@ function Root(){
  const [journalText,setJournalText]=useState('');
  const [journalPhoto,setJournalPhoto]=useState<string|null>(null);
  const [photoCameraOpen,setPhotoCameraOpen]=useState(false);
- const [cameraPermission,requestCameraPermission]=useCameraPermissions();
+ const [CameraComponent,setCameraComponent]=useState<typeof CameraView|null>(null);
+ const [LensComponent,setLensComponent]=useState<typeof import('./SkyLens').SkyLens|null>(null);
+ const [lensError,setLensError]=useState('');
  const cameraRef=useRef<CameraView>(null);
  const shareCardRef=useRef<any>(null);
  const [voiceDuration,setVoiceDuration]=useState<'brief'|'full'>('full');
@@ -91,6 +88,12 @@ function Root(){
  useEffect(()=>{dailyNotificationEnabled().then(setNotificationActive).catch(()=>{});},[]);
  useEffect(()=>{getVoiceProfileStatus().then(setVoiceProfiles).catch(()=>{});},[]);
  useEffect(()=>{const id=setInterval(()=>setNow(Date.now()),60000);return()=>clearInterval(id);},[]);
+ useEffect(()=>{
+  if(screen!=='lens'||LensComponent)return;
+  let active=true;
+  import('./SkyLens').then(mod=>{if(active)setLensComponent(()=>mod.SkyLens);}).catch(()=>{if(active)setLensError('Kamera görünümü bu Expo Go sürümünde açılamadı. SDK 58 uyumlu Expo Go veya geliştirme derlemesini kullan.');});
+  return()=>{active=false;};
+ },[screen,LensComponent]);
  useEffect(()=>{AsyncStorage.multiGet(['sky.place','sky.settings','sky.locationMode','sky.favorites','sky.journal']).then(values=>{
   const savedPlace=values[0][1],saved=values[1][1];
   if(savedPlace){const p=JSON.parse(savedPlace) as Place;if(Number.isFinite(p.latitude)&&Number.isFinite(p.longitude)){bootPlaceRef.current=p;setPlace(p);}}
@@ -158,9 +161,13 @@ function Root(){
   setJournal(prev=>[entry,...prev].slice(0,100));setJournalText('');setJournalPhoto(null);
  }
  async function openJournalCamera(){
-  const permission=cameraPermission?.granted?cameraPermission:await requestCameraPermission();
-  if(!permission.granted){Alert.alert('Kamera izni gerekli','Fotoğraf eklemek için ayarlardan kamera izni ver.');return;}
-  setPhotoCameraOpen(true);
+  try{
+   const camera=await import('expo-camera');
+   const current=await camera.Camera.getCameraPermissionsAsync();
+   const permission=current.granted?current:await camera.Camera.requestCameraPermissionsAsync();
+   if(!permission.granted){Alert.alert('Kamera izni gerekli','Fotoğraf eklemek için ayarlardan kamera izni ver.');return;}
+   setCameraComponent(()=>camera.CameraView);setPhotoCameraOpen(true);
+  }catch{Alert.alert('Kamera açılamadı','Bu Expo Go sürümünde kamera modülü bulunamadı. SDK 58 uyumlu Expo Go veya geliştirme derlemesini kullan.');}
  }
  async function takeJournalPhoto(){
   try{
@@ -174,6 +181,8 @@ function Root(){
  async function shareDayCard(){
   if(!shareCardRef.current||!weather){Alert.alert('Hava verisi bekleniyor','Kart için hava durumunu yükle.');return;}
   try{
+   const Sharing=await import('expo-sharing');
+   const {captureRef}=require('react-native-view-shot') as {captureRef:(target:unknown,options:object)=>Promise<string>};
    if(!await Sharing.isAvailableAsync())throw new Error('Bu cihazda paylaşım kullanılamıyor.');
    const uri=await captureRef(shareCardRef.current,{format:'png',result:'tmpfile'});
    await Sharing.shareAsync(uri,{mimeType:'image/png',dialogTitle:'Gökyüzü kartını paylaş'});
@@ -266,6 +275,7 @@ function Root(){
  async function shareObservationCalendar(){
   if(!plan||!place)return;
   try{
+   const Sharing=await import('expo-sharing');
    if(!await Sharing.isAvailableAsync())throw new Error('Paylaşım bu cihazda kullanılamıyor.');
    const stamp=(ms:number)=>new Date(ms).toISOString().replace(/[-:]/g,'').replace(/\.\d{3}/,'');
    const safePlace=place.name.replace(/[\\;,\n\r]/g,' ').slice(0,40);
@@ -422,7 +432,7 @@ function Root(){
   </>)}
   {screen==='lens'&&panel(<>
     {txt('✦ Gökyüzüne Tut',22,true)}
-    {place?<SkyLens latitude={place.latitude} longitude={place.longitude} place={place.name} dark={dark}/>:txt('Gökyüzünü hesaplamak için konum belirle.',14)}
+    {place&&LensComponent?<LensComponent latitude={place.latitude} longitude={place.longitude} place={place.name} dark={dark}/>:txt(lensError||'Konum ve kamera görünümü hazırlanıyor.',14)}
     {button('‹ Gezegenlere dön',()=>setScreen('sky'),true)}
   </>)}
   {screen==='cards'&&panel(<CardReadings p={p}/>)}
@@ -475,7 +485,7 @@ function Root(){
       {txt('Bugün nasıl hissediyorsun? Notlar yalnızca bu cihazda saklanır.',12,false,true)}
       <View style={styles.moodRow}>{['Sakin','Neşeli','Düşünceli','Yorgun'].map(m=><Pressable accessibilityRole="button" key={m} onPress={()=>setMood(m)} style={[styles.moodChip,{backgroundColor:mood===m?p.accent:p.input}]}><Text style={{color:mood===m?p.button:p.text,fontSize:12}}>{m}</Text></Pressable>)}</View>
       <TextInput multiline maxLength={500} value={journalText} onChangeText={setJournalText} placeholder="Gökyüzüne bakınca bugün neler düşündün?" placeholderTextColor={p.sub} style={[styles.journalInput,{backgroundColor:p.input,color:p.text,borderColor:p.line}]}/>
-      {photoCameraOpen?<View style={{height:350,marginTop:12,overflow:'hidden',borderRadius:18}}><CameraView ref={cameraRef} style={{flex:1}} facing="back"/>{button('📷 Fotoğrafı çek',()=>void takeJournalPhoto())}{button('Vazgeç',()=>setPhotoCameraOpen(false),true)}</View>:button('📷 Gökyüzünün fotoğrafını ekle',()=>void openJournalCamera(),true)}
+      {photoCameraOpen&&CameraComponent?<View style={{height:350,marginTop:12,overflow:'hidden',borderRadius:18}}><CameraComponent ref={cameraRef} style={{flex:1}} facing="back"/>{button('📷 Fotoğrafı çek',()=>void takeJournalPhoto())}{button('Vazgeç',()=>setPhotoCameraOpen(false),true)}</View>:button('📷 Gökyüzünün fotoğrafını ekle',()=>void openJournalCamera(),true)}
       {journalPhoto&&<View><Image source={{uri:journalPhoto}} style={{width:'100%',height:180,borderRadius:16,marginTop:12}}/>{button('Fotoğrafı kaldır',()=>{try{new File(journalPhoto).delete();}catch{}setJournalPhoto(null);},true)}</View>}
       {button('✦ Günlüğüme kaydet',saveEntry)}
     </>)}
