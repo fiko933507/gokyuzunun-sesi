@@ -2,6 +2,8 @@ import type * as NotificationTypes from 'expo-notifications';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 const KEY='sky.local.notification.id';
+const WEATHER_KEY='sky.weather.notification.ids';
+export type AlertHours={time:string[];precipitation_probability:number[];temperature_2m:number[]};
 async function notificationModule():Promise<typeof NotificationTypes>{
  try{return await import('expo-notifications');}
  catch{throw new Error('Bu Expo Go sürümü bildirim modülünü desteklemiyor. Expo Go’yu güncelle veya uygulamanın geliştirme derlemesini kullan.');}
@@ -31,4 +33,34 @@ export async function dailyNotificationEnabled(){
  const Notifications=await notificationModule();
  const scheduled=await Notifications.getAllScheduledNotificationsAsync();
  return scheduled.some(n=>n.identifier===id);
+}
+export async function scheduleWeatherAlerts(hourly:AlertHours,offsetSeconds:number,place:string,rainThreshold:number,coldThreshold:number){
+ const Notifications=await notificationModule();
+ const permission=await Notifications.requestPermissionsAsync();
+ if(!permission.granted)throw new Error('Bildirim izni verilmedi. Telefon ayarlarından açabilirsin.');
+ if(Platform.OS==='android')await Notifications.setNotificationChannelAsync('sky-weather',{name:'Hava uyarıları',importance:Notifications.AndroidImportance.DEFAULT});
+ const old=JSON.parse((await AsyncStorage.getItem(WEATHER_KEY))||'[]') as string[];
+ await Promise.all(old.map(id=>Notifications.cancelScheduledNotificationAsync(id).catch(()=>{})));
+ const now=Date.now(),events:Array<{kind:'rain'|'cold';date:Date}> = [];
+ for(let i=0;i<hourly.time.length;i++){
+  const instant=Date.parse(hourly.time[i]+'Z')-offsetSeconds*1000;
+  if(!Number.isFinite(instant)||instant<now+60_000||instant>now+36*60*60_000)continue;
+  if(!events.some(e=>e.kind==='rain')&&typeof hourly.precipitation_probability[i]==='number'&&hourly.precipitation_probability[i]>=rainThreshold)events.push({kind:'rain',date:new Date(instant)});
+  if(!events.some(e=>e.kind==='cold')&&typeof hourly.temperature_2m[i]==='number'&&hourly.temperature_2m[i]<=coldThreshold)events.push({kind:'cold',date:new Date(instant)});
+  if(events.length===2)break;
+ }
+ const ids:string[]=[];
+ try{
+  for(const event of events){
+   ids.push(await Notifications.scheduleNotificationAsync({content:{title:event.kind==='rain'?'☂ Yağış uyarısı':'🧥 Soğuk hava uyarısı',body:event.kind==='rain'?place+' için yağış ihtimali %'+rainThreshold+' eşiğini aşıyor. Şemsiyeni kontrol et.':place+' için sıcaklık '+coldThreshold+'°C altına inebilir.',sound:'default'},trigger:{type:Notifications.SchedulableTriggerInputTypes.DATE,date:event.date,channelId:Platform.OS==='android'?'sky-weather':undefined}}));
+  }
+ }catch(error){await Promise.all(ids.map(id=>Notifications.cancelScheduledNotificationAsync(id).catch(()=>{})));throw error;}
+ await AsyncStorage.setItem(WEATHER_KEY,JSON.stringify(ids));
+ return events.length;
+}
+export async function stopWeatherAlerts(){
+ const Notifications=await notificationModule();
+ const ids=JSON.parse((await AsyncStorage.getItem(WEATHER_KEY))||'[]') as string[];
+ await Promise.all(ids.map(id=>Notifications.cancelScheduledNotificationAsync(id).catch(()=>{})));
+ await AsyncStorage.removeItem(WEATHER_KEY);
 }
