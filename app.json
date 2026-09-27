@@ -22,6 +22,12 @@
       ],
       "expo-status-bar",
       [
+        "expo-camera",
+        {
+          "cameraPermission": "Gökyüzü günlüğüne fotoğraf eklemek ve gökyüzünü kamerayla görmek için kamera kullanılır."
+        }
+      ],
+      [
         "expo-notifications",
         {
           "color": "#E6C38C",
