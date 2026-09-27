@@ -46,7 +46,7 @@ function rateLimit(req) {
   }
   return recent.length <= 5;
 }
-async function speech(profile, text = VOICES[profile].text, cacheKey = 'preview:' + profile) {
+async function speech(profile, text = VOICES[profile].text, cacheKey = 'preview:' + profile, pace = 'normal') {
   if (!KEY) throw Object.assign(new Error('ElevenLabs key not configured'), { status: 503 });
   const voice = VOICES[profile];
   if (!voice.id) throw Object.assign(new Error('Voice ID not configured'), { status: 503 });
@@ -67,7 +67,7 @@ async function speech(profile, text = VOICES[profile].text, cacheKey = 'preview:
       const upstream = await fetch('https://api.elevenlabs.io/v1/text-to-speech/' + encodeURIComponent(voice.id) + '?output_format=mp3_44100_128', {
         method: 'POST',
         headers: { 'xi-api-key': KEY, 'Content-Type': 'application/json', 'Accept': 'audio/mpeg' },
-        body: JSON.stringify({ text, model_id: MODEL, voice_settings: voice.settings }),
+        body: JSON.stringify({ text, model_id: MODEL, voice_settings: {...voice.settings,speed:pace==='calm'?0.86:1} }),
         signal: controller.signal,
       });
       if (!upstream.ok) {
@@ -156,7 +156,7 @@ const server = http.createServer(async (req, res) => {
       const profile = input && typeof input.profile === 'string' ? input.profile : '';
       if (!Object.hasOwn(VOICES, profile)) return json(res, 400, { error: 'Invalid voice profile' });
       const generated = path === '/api/narration' ? await narration(profile,input) : {text:VOICES[profile].text,cacheKey:'preview:'+profile};
-      const data = await speech(profile,generated.text,generated.cacheKey);
+      const data = await speech(profile,generated.text,generated.cacheKey,generated.pace);
       res.writeHead(200, { 'Content-Type': 'audio/mpeg', 'Content-Length': data.length, 'Cache-Control': 'private, max-age=3600', 'X-Content-Type-Options': 'nosniff' });
       return res.end(data);
     } catch (err) {
