@@ -39,6 +39,8 @@ function signAt(body, date) {
 }
 async function narration(profile, input, now = new Date(), fetchImpl = fetch) {
   const day = now.toISOString().slice(0,10);
+  const duration=input.duration??'full', pace=input.pace??'normal';
+  if(!['brief','full'].includes(duration)||!['normal','calm'].includes(pace))throw Object.assign(new Error('Invalid narration preferences'),{status:400});
   if (profile === 'astrology') {
     const sign = input.sign;
     if (!SIGNS.includes(sign)) throw Object.assign(new Error('Invalid zodiac sign'), {status:400});
@@ -51,8 +53,9 @@ async function narration(profile, input, now = new Date(), fetchImpl = fetch) {
     const phase = Astronomy.MoonPhase(now);
     const moonPhase = phase<22.5||phase>=337.5?'yeni Ay':phase<67.5?'büyüyen hilal':phase<112.5?'ilk dördün':phase<157.5?'büyüyen Ay':phase<202.5?'dolunay':phase<247.5?'küçülen Ay':phase<292.5?'son dördün':'küçülen hilal';
     return {
-      cacheKey:'v3:astrology:'+day+':'+sign,
-      text:'Gökyüzünün Sesi ile hoş geldin. '+sign+' burcu için bugünün gökyüzüne birlikte bakalım. Güneş '+sunSign+', Ay '+moonSign+' bölümünde. Merkür '+mercurySign+', Venüs '+venusSign+' ve Mars '+marsSign+' bölümünde hesaplandı. Ayın evresi '+moonPhase+', aydınlanma oranı yüzde '+illumination+'. Bu gerçek astronomik konumları astrolojide bir düşünme daveti olarak ele alıyoruz. Bugün kendine nelerin önemli olduğunu, hangi konulara dikkat vermek istediğini sorabilirsin. Bu yorum semboliktir; gezegenler kişisel olayları bilimsel olarak öngörmez.',
+      cacheKey:'v3:astrology:'+day+':'+sign+':'+duration+':'+pace,
+      pace,
+      text:duration==='brief'?'Gökyüzünün Sesi. '+sign+' burcu için Ay '+moonSign+' bölümünde; evresi '+moonPhase+'. Bugün önceliklerini düşünmek için kendine zaman ayır. Bu sembolik bir yorumdur.':'Gökyüzünün Sesi ile hoş geldin. '+sign+' burcu için bugünün gökyüzüne birlikte bakalım. Güneş '+sunSign+', Ay '+moonSign+' bölümünde. Merkür '+mercurySign+', Venüs '+venusSign+' ve Mars '+marsSign+' bölümünde hesaplandı. Ayın evresi '+moonPhase+', aydınlanma oranı yüzde '+illumination+'. Bu gerçek astronomik konumları astrolojide bir düşünme daveti olarak ele alıyoruz. Bugün kendine nelerin önemli olduğunu, hangi konulara dikkat vermek istediğini sorabilirsin. Bu yorum semboliktir; gezegenler kişisel olayları bilimsel olarak öngörmez.',
     };
   }
   if(profile !== 'weather' || !finiteCoordinate(input.latitude,-90,90) || !finiteCoordinate(input.longitude,-180,180)) {
@@ -93,8 +96,9 @@ async function narration(profile, input, now = new Date(), fetchImpl = fetch) {
   const wind=round(w.current.wind_speed_10m);
   const advice=rain>=50?'Şemsiyeni yanına almayı unutma.':wind>=45?'Rüzgâr güçlü olabilir, dışarıda dikkatli ol.':min<=5?'Sabah serinliği için kalın giyin.':max>=32?'Sıcak havada bol su iç.':'Günün tadını çıkar.';
   return {
-    cacheKey,
-    text:'Merhaba, Gökyüzünün Sesi seninle. '+name+' için hava durumuna birlikte bakalım. Şu anda hava '+forecastCode(w.current.weather_code)+'. Sıcaklık '+temp+' derece, hissedilen '+feels+' derece. Bugün en düşük '+min+', en yüksek '+max+' derece bekleniyor. Yağış olasılığı yüzde '+rain+'. Rüzgâr saatte '+wind+' kilometre. Güneş '+sunTime(w.daily.sunrise[0])+' saatinde doğuyor, '+sunTime(w.daily.sunset[0])+' saatinde batıyor. '+advice,
+    cacheKey:cacheKey+':'+duration+':'+pace,
+    pace,
+    text:duration==='brief'?'Merhaba. '+name+' için hava '+forecastCode(w.current.weather_code)+', sıcaklık '+temp+' derece. Yağış olasılığı yüzde '+rain+'. '+advice:'Merhaba, Gökyüzünün Sesi seninle. '+name+' için hava durumuna birlikte bakalım. Şu anda hava '+forecastCode(w.current.weather_code)+'. Sıcaklık '+temp+' derece, hissedilen '+feels+' derece. Bugün en düşük '+min+', en yüksek '+max+' derece bekleniyor. Yağış olasılığı yüzde '+rain+'. Rüzgâr saatte '+wind+' kilometre. Güneş '+sunTime(w.daily.sunrise[0])+' saatinde doğuyor, '+sunTime(w.daily.sunset[0])+' saatinde batıyor. '+advice,
   };
 }
 module.exports={narration,placeLabel,forecastCode,SIGNS};
