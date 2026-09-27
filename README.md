@@ -11,6 +11,10 @@ Gündüz açık ve gece lacivert-mor atmosferde çalışan Türkçe gökyüzü u
 - Hava ve Ay bilgilerini görsel kart olarak telefonun paylaşım menüsüne gönderme
 - Sesli yorum için kısa/tam anlatım ve normal/sakin tempo; seçilen dinleme saatinde günlük hatırlatma
 - Kart Yorumları: Tarot Büyük Arkana günlük kartı, Katina tarzı özgün semboller ve 52 kartlık iskambil; üç kart açılımı, seçilen kartların temel anlamları ve sunucu üzerinden isteğe bağlı yapay zekâ yorumu
+- Bu Gece Nereye Bakayım?: konum, saatlik hava ve pus tahmininden gözlem zamanı; Ay ile ufuk üzerindeki parlak gezegenlerin yönleri, mevcut kadın astroloji sesiyle kısa sesli rehber ve paylaşılabilir `.ics` takvim dosyası (takvim uygulamasına aktarma desteği cihaza bağlıdır)
+- Gök Olayları Takvimi: hesaplanan Yeni Ay/Dolunay zamanları ve American Meteor Society'nin 2026–2027 beklenen meteor zirveleri (güncellenen takvim için uygulama verisi yenilenmelidir)
+- Kart geçmişi: başarılı yorumlar cihazda saklanır, her kayıt silinebilir; soru ayrı bir alan olarak kaydedilmez
+- Gece Havası: Open-Meteo / CAMS kaynaklı Avrupa hava kalitesi endeksi, PM2.5 ve aerosol optik derinliği varsa gösterilir
 - Ayarlardan favori şehir kaydı ve tek dokunuşla geçiş (en çok 12 şehir)
 - Gökyüzü günlüğü: ruh hâli, not, konum ve Ay evresi yalnızca cihazda saklanır; kayıtlar silinebilir
 - Kullanıcının seçtiği yağış ve soğuk eşiklerinde yaklaşan 36 saat için yerel uyarılar
@@ -49,4 +53,5 @@ Render'daki mevcut backend servisinin ortam değişkenlerine `OPENAI_API_KEY` ek
 - Deneme backend'i günlük en fazla 12 üretim isteğiyle ve süreç belleği önbelleğiyle sınırlandırılmıştır; servis yeniden başladığında limit sıfırlanır. Yaygın kullanımdan önce kullanıcı kimliği, kalıcı kota ve maliyet kontrolleri eklenmelidir.
 - Ekliptik burç bölümü, takımyıldızı astronomik sınırları ile aynı şey değildir. Astrolojik yorumlar bilimsel öngörü değildir.
 - Kart yorumları eğlence ve düşünme amaçlıdır. İsteğe bağlı sorular yorum oluşturulması için sunucu üzerinden yapay zekâ sağlayıcısına gönderilir; uygulamanın günlüğüne eklenmez.
+- Gözlem planı tahmini hava ve hesaplanan astronomik yönleri kullanır; ışık kirliliği ve yerel engeller ölçülmez. Meteor günleri beklenen zirvedir; geceler ve görünürlük coğrafyaya göre değişebilir. Meteor tarihleri: [American Meteor Society](https://www.amsmeteors.org/calendar/).
 - Gökyüzüne Tut gerçek artırılmış gerçeklik kalibrasyonu yapmaz: pusulaya göre yaklaşık yön verir. Gece gözlem puanı ışık kirliliğini veya gerçek görüşü ölçmez.
