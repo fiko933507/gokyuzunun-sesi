@@ -17,6 +17,7 @@ import type { VoiceProfile } from './voiceConfig';
 import { skyAt, symbolicReading } from './astronomy';
 import { skyViewingWindows, moonCalendar } from './skyDiscovery';
 import { SkyLens } from './SkyLens';
+import { CardReadings } from './CardReadings';
 import { MoonDisc, SkyAtmosphere, SunDisc, ZodiacWheel } from './CelestialVisuals';
 import { dailyNotificationEnabled, setDailyNotification, stopDailyNotification, scheduleWeatherAlerts, stopWeatherAlerts } from './notifications';
 
@@ -41,7 +42,7 @@ const time=(s?:string)=>s?.split('T')[1]?.slice(0,5)||'—';
 const num=(n?:number)=>Number.isFinite(n)?String(Math.round(n!)):'—';
 function currentIsNight(w:Weather){return w.current.is_day!==1;}
 function Root(){
- const [screen,setScreen]=useState<'weather'|'sky'|'zodiac'|'journal'|'settings'|'moon'|'lens'>('weather');
+ const [screen,setScreen]=useState<'weather'|'sky'|'zodiac'|'journal'|'settings'|'moon'|'lens'|'cards'>('weather');
  const [weather,setWeather]=useState<Weather|null>(null);
  const [place,setPlace]=useState<Place|null>(null);
  const [locationMode,setLocationMode]=useState<'gps'|'city'>('gps');
@@ -257,6 +258,7 @@ function Root(){
       <Text style={{color:p.sub,fontSize:11,fontStyle:'italic'}}>Evren hep seninle konuşuyor…</Text>
     </View>
     <Pressable accessibilityRole="button" accessibilityLabel="Gökyüzü günlüğünü aç" onPress={()=>setScreen('journal')} style={{padding:6}}><Text style={{fontSize:23,color:p.accent}}>✎</Text></Pressable>
+    <Pressable accessibilityRole="button" accessibilityLabel="Kart yorumlarını aç" onPress={()=>setScreen('cards')} style={{padding:6}}><Text style={{fontSize:23,color:p.accent}}>✧</Text></Pressable>
     <Pressable accessibilityRole="button" accessibilityLabel="Bildirim ayarları" onPress={()=>setScreen('settings')} style={{padding:6}}><Text style={{fontSize:26,color:p.accent}}>♧</Text></Pressable>
     <Pressable accessibilityRole="button" accessibilityLabel="Ayarları aç" onPress={()=>setScreen('settings')} style={[styles.headerAction,{backgroundColor:p.panel,borderColor:p.line}]}><Text style={{color:p.accent,fontSize:22}}>⚙</Text></Pressable>
   </View>
@@ -303,6 +305,7 @@ function Root(){
      <View style={[styles.playIcon,{backgroundColor:p.accent}]}><Text style={{color:p.button,fontSize:22}}>{activeVoice==='astrology'?'■':voiceLoading==='astrology'?'…':'▶'}</Text></View>
    </Pressable>
    {voiceLoading==='astrology'&&<ActivityIndicator color={p.accent}/>}
+   <Pressable accessibilityRole="button" onPress={()=>setScreen('cards')} style={[styles.voiceBanner,{borderColor:p.line,backgroundColor:p.panel}]}><Text style={{color:p.accent,fontSize:32}}>✧</Text><View style={{flex:1}}><Text style={[{color:p.text,fontSize:17},serif]}>Kart Yorumları</Text><Text style={{color:p.sub,fontSize:12}}>Tarot · Katina tarzı · İskambil</Text></View><Text style={{color:p.accent,fontSize:20}}>›</Text></Pressable>
    {current&&daily&&<>
     {panel(<>
      <Text style={[{color:p.text,fontSize:19},serif]}>✦ Günlük Gökyüzü Rotası</Text>
@@ -379,6 +382,7 @@ function Root(){
     {place?<SkyLens latitude={place.latitude} longitude={place.longitude} place={place.name} dark={dark}/>:txt('Gökyüzünü hesaplamak için konum belirle.',14)}
     {button('‹ Gezegenlere dön',()=>setScreen('sky'),true)}
   </>)}
+  {screen==='cards'&&panel(<CardReadings p={p}/>)}
   {screen==='zodiac'&&<>
     {panel(<>
       {txt('✧ Burç Çarkı',24,true)}
