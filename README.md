@@ -10,6 +10,7 @@ Gündüz açık ve gece lacivert-mor atmosferde çalışan Türkçe gökyüzü u
 - Günlüğe kamerayla çekilmiş fotoğraf ekleme; fotoğraf cihazın uygulama klasöründe tutulur
 - Hava ve Ay bilgilerini görsel kart olarak telefonun paylaşım menüsüne gönderme
 - Sesli yorum için kısa/tam anlatım ve normal/sakin tempo; seçilen dinleme saatinde günlük hatırlatma
+- Kart Yorumları: Tarot Büyük Arkana günlük kartı, Katina tarzı özgün semboller ve 52 kartlık iskambil; üç kart açılımı, seçilen kartların temel anlamları ve sunucu üzerinden isteğe bağlı yapay zekâ yorumu
 - Ayarlardan favori şehir kaydı ve tek dokunuşla geçiş (en çok 12 şehir)
 - Gökyüzü günlüğü: ruh hâli, not, konum ve Ay evresi yalnızca cihazda saklanır; kayıtlar silinebilir
 - Kullanıcının seçtiği yağış ve soğuk eşiklerinde yaklaşan 36 saat için yerel uyarılar
@@ -34,6 +35,10 @@ npx expo start --clear
 
 Ekranda `Gökyüzü Takvimi` görünmüyorsa Metro'yu kapatıp yeniden `npx expo start --clear` çalıştırın ve QR kodunu tekrar açın. Konum izni ve telefonun GPS ayarı açık olmalıdır. Bildirim izni verilmelidir.
 
+### Kart yorumları için yapay zekâ
+
+Render'daki mevcut backend servisinin ortam değişkenlerine `OPENAI_API_KEY` eklenmelidir. İsteğe bağlı `CARD_READING_MODEL` değişkeniyle model seçilebilir; varsayılan `gpt-4.1-mini`dir. Anahtar mobil uygulamaya yazılmaz. Anahtar tanımlı değilse kart çekme ve kartların temel anlamları çalışır; "Yapay zekâ ile yorumla" düğmesi kurulumu açıklayan bir mesaj gösterir. Yorum üretimi sunucuda IP başına dakikada en fazla 5 istek ve süreç başına günde en fazla 30 istekle sınırlıdır. Bu basit sınırlar halka açık geniş ölçekli kullanım için kullanıcı kimliği veya kalıcı kota yerine geçmez.
+
 ## Sınırlar
 - Referans seçeneğinin gece ve gündüz gökyüzü illüstrasyonları uygulamaya eklendi. Ön plandaki kartlar cihaz boyutuna ve gerçek veriye göre yeniden düzenlenir; referans görselin sabit ekran görüntüsü değildir.
 - Günlük yerel bildirim **önceden belirlenmiş hatırlatmadır**; her sabah arka planda yeni hava verisi çekip seslendirme yapmaz. Bu iş için sunucu tabanlı push gerekir.
@@ -43,4 +48,5 @@ Ekranda `Gökyüzü Takvimi` görünmüyorsa Metro'yu kapatıp yeniden `npx expo
 - Free plan lisansı ticari olmayan kullanıma bağlı olabilir; mağazaya ticari sürüm yayımlamadan önce uygun ElevenLabs planı/lisansı doğrulanmalıdır.
 - Deneme backend'i günlük en fazla 12 üretim isteğiyle ve süreç belleği önbelleğiyle sınırlandırılmıştır; servis yeniden başladığında limit sıfırlanır. Yaygın kullanımdan önce kullanıcı kimliği, kalıcı kota ve maliyet kontrolleri eklenmelidir.
 - Ekliptik burç bölümü, takımyıldızı astronomik sınırları ile aynı şey değildir. Astrolojik yorumlar bilimsel öngörü değildir.
+- Kart yorumları eğlence ve düşünme amaçlıdır. İsteğe bağlı sorular yorum oluşturulması için sunucu üzerinden yapay zekâ sağlayıcısına gönderilir; uygulamanın günlüğüne eklenmez.
 - Gökyüzüne Tut gerçek artırılmış gerçeklik kalibrasyonu yapmaz: pusulaya göre yaklaşık yön verir. Gece gözlem puanı ışık kirliliğini veya gerçek görüşü ölçmez.
