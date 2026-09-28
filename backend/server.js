@@ -170,6 +170,23 @@ const server = http.createServer(async (req, res) => {
     }
     return json(res, 200, { profiles });
   }
+  if(req.method==='POST'&&path==='/api/card-reading-audio'){
+    if(!rateLimit(req))return json(res,429,{error:'Too many requests'});
+    let body='';
+    try{
+      for await(const chunk of req){body+=chunk;if(body.length>400)return json(res,413,{error:'Request too large'});}
+      const input=JSON.parse(body);
+      if(!input||Object.keys(input).some(key=>!['deck','spread','cards'].includes(key)))return json(res,400,{error:'Invalid request'});
+      const {deck,spread,names}=require('./cardReading').validate(input);
+      const labels=spread==='daily'?['Bugün']:['Geçmiş','Bugün','Olasılık'];
+      const themes={tarot:'Bu tarot sembolünün sana çağrıştırdığı değişimi, ihtiyaçlarını ve elindeki seçenekleri düşün.',katina:'Bu ilişki sembolünü düşünürken hem kendi sınırlarını hem de açık iletişimi gözet.',iskambil:'Bu iskambil kartının çağrıştırdığı duyguları, düşünceleri ve günlük adımları gözden geçir.'};
+      const text='Kartların sesli sembolik yorumu. '+names.map((name,index)=>`${labels[index]} konumunda ${name}. ${themes[deck]} Bu simgenin senin hayatındaki karşılığını düşün; büyük bir karar yerine bugün uygulayabileceğin küçük bir adım seç.`).join(' ')+' Bu anlatım eğlence ve düşünme amaçlıdır; geleceği kesin biçimde anlatmaz.';
+      const key='cards:'+deck+':'+spread+':'+input.cards.join(',');
+      const data=await speech('astrology',text,key);
+      res.writeHead(200,{'Content-Type':'audio/mpeg','Content-Length':data.length,'Cache-Control':'private, max-age=3600','X-Content-Type-Options':'nosniff'});
+      return res.end(data);
+    }catch(err){return json(res,[400,402,409,429,503].includes(err.status)?err.status:502,{error:err.status===409?'Female voice unavailable':err.status===429?'Daily voice limit reached':'Card audio unavailable'});}
+  }
   if(req.method==='POST'&&path==='/api/observation-audio'){
     if(!rateLimit(req))return json(res,429,{error:'Too many requests'});
     let body='';
