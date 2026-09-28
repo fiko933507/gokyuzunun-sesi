@@ -156,3 +156,18 @@ export async function unfollowSkyEvent(eventId:string){
  await AsyncStorage.setItem(EVENT_KEY,JSON.stringify(next));
  return next;
 }
+
+export async function enableForecastChangeAlerts(){
+ const Notifications=await notificationModule();
+ const permission=await Notifications.requestPermissionsAsync();
+ if(!permission.granted)throw new Error('Bildirim izni verilmedi. Telefon ayarlarından açabilirsin.');
+ if(Platform.OS==='android')await Notifications.setNotificationChannelAsync('sky-change',{name:'Değişen hava tahmini',importance:Notifications.AndroidImportance.DEFAULT});
+}
+export async function notifyForecastChange(place:string,change:string){
+ const Notifications=await notificationModule();
+ if(!(await Notifications.getPermissionsAsync()).granted)return false;
+ if(Platform.OS==='android')await Notifications.setNotificationChannelAsync('sky-change',{name:'Değişen hava tahmini',importance:Notifications.AndroidImportance.DEFAULT});
+ Notifications.setNotificationHandler({handleNotification:async()=>({shouldShowBanner:true,shouldShowList:true,shouldPlaySound:false,shouldSetBadge:false})});
+ await Notifications.scheduleNotificationAsync({content:{title:'☂ '+place+' için tahmin değişti',body:change,sound:false},trigger:Platform.OS==='android'?{type:Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,seconds:1,channelId:'sky-change'}:null});
+ return true;
+}
