@@ -26,6 +26,7 @@ Gündüz açık ve gece lacivert-mor atmosferde çalışan Türkçe gökyüzü u
 - Gece Havası: Open-Meteo / CAMS kaynaklı Avrupa hava kalitesi endeksi, PM2.5 ve aerosol optik derinliği varsa gösterilir
 - Ayarlardan favori şehir kaydı ve tek dokunuşla geçiş (en çok 12 şehir)
 - Gökyüzü günlüğü: ruh hâli, not, konum ve Ay evresi yalnızca cihazda saklanır; kayıtlar silinebilir
+- Şans Kurabiyesi: her gün açılan rastgele sembolik mesaj ve düşünme sorusu cihazda saklanır; önceki mesajlar görüntülenir, paylaşılır veya günlüğe taslak olarak aktarılır. Gelecek tahmini değildir.
 - Kullanıcının seçtiği yağış ve soğuk eşiklerinde yaklaşan 36 saat için yerel uyarılar
 - Konumu kullan / şehir ara: son bilinen konum, izin ve zaman aşımı yönetimi
 - Güneş doğuş-batış zamanlarıyla otomatik tema
