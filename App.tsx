@@ -16,7 +16,7 @@ import {observationPlan,skyEvents,type AirForecast} from './observationPlan';
 import { CardReadings } from './CardReadings';
 import { Compass } from './Compass';
 import { MoonDisc, SkyAtmosphere, SunDisc, ZodiacWheel } from './CelestialVisuals';
-import { dailyNotificationEnabled, setDailyNotification, stopDailyNotification, scheduleWeatherAlerts, stopWeatherAlerts } from './notifications';
+import { dailyNotificationEnabled, setDailyNotification, stopDailyNotification, scheduleWeatherAlerts, stopWeatherAlerts, notifyGpsUpdated } from './notifications';
 
 type Place = { name: string; latitude: number; longitude: number };
 type CityResult={name:string;country?:string;admin1?:string;latitude:number;longitude:number};
@@ -70,9 +70,12 @@ function Root(){
  const lastFetchRef=useRef(0);
  const loadIdRef=useRef(0);
  const locationActionRef=useRef(0);
+ const lastGpsRef=useRef<Place|null>(null);
+ const lastGpsNoticeRef=useRef(0);
  const [query,setQuery]=useState('');
  const [cityResults,setCityResults]=useState<CityResult[]>([]);
  const [locationStatus,setLocationStatus]=useState('');
+ const [locationNotice,setLocationNotice]=useState('');
  const [busy,setBusy]=useState(false);
  const [error,setError]=useState('');
  const [speaking,setSpeaking]=useState(false);
@@ -147,7 +150,7 @@ function Root(){
   }catch(e){if(loadId===loadIdRef.current)setError(controller.signal.aborted?'Hava tahmini sunucusu zaman aşımına uğradı. Tekrar dene.':e instanceof Error?e.message:'Hava bilgisi alınamadı.');return false;}
   finally{clearTimeout(timer);if(loadId===loadIdRef.current)setBusy(false);}
  },[]);
- const locate=useCallback(async()=>{
+ const locate=useCallback(async(manual=false)=>{
   const action=++locationActionRef.current;
   setBusy(true);setError('');
   try{
@@ -172,10 +175,22 @@ function Root(){
    }catch{}finally{if(nameTimer)clearTimeout(nameTimer);}
    if(action!==locationActionRef.current)return;
    const ok=await load({name,latitude,longitude},'gps');
-   if(ok&&action===locationActionRef.current){setLocationStatus((cached?'Son bilinen yakın konum kullanıldı.':'GPS konumu alındı.')+(typeof pos.coords.accuracy==='number'?' Yaklaşık doğruluk: '+Math.round(pos.coords.accuracy)+' m.':''));setCityResults([]);}
+   if(ok&&action===locationActionRef.current){
+    const previous=lastGpsRef.current;
+    const moved=previous?Math.hypot((latitude-previous.latitude)*111_000,(longitude-previous.longitude)*111_000*Math.cos(latitude*Math.PI/180))>1000:false;
+    lastGpsRef.current={name,latitude,longitude};
+    setLocationStatus((cached?'Son bilinen yakın konum kullanıldı.':'GPS konumu alındı.')+(typeof pos.coords.accuracy==='number'?' Yaklaşık doğruluk: '+Math.round(pos.coords.accuracy)+' m.':''));
+    setLocationNotice('⌖ Konumun güncellendi · '+name+(cached?' (son bilinen konum)':''));
+    setCityResults([]);
+    if(manual||(moved&&Date.now()-lastGpsNoticeRef.current>30*60_000)){
+     lastGpsNoticeRef.current=Date.now();
+     void notifyGpsUpdated(name,manual).catch(()=>{});
+    }
+   }
   }catch(e){if(action===locationActionRef.current)setError((e instanceof Error?e.message:'Konum belirlenemedi.')+' GPS ve konum iznini kontrol et veya şehir adıyla ara.');}
   finally{if(action===locationActionRef.current)setBusy(false);}
  },[load]);
+ useEffect(()=>{if(!locationNotice)return;const timer=setTimeout(()=>setLocationNotice(''),8000);return()=>clearTimeout(timer);},[locationNotice]);
  useEffect(()=>{if(!hydrated)return;if(locationMode==='city'&&bootPlaceRef.current)void load(bootPlaceRef.current,'city');else void locate();},[hydrated]);
  useEffect(()=>{
   if(!place)return;
@@ -354,7 +369,7 @@ function Root(){
   <SkyAtmosphere night={dark}/>
   <StatusBar style={dark?'light':'dark'}/>
   <ScrollView key={screen} keyboardShouldPersistTaps="handled"
-    refreshControl={<RefreshControl refreshing={busy} onRefresh={()=>locationMode==='gps'?void locate():place?void load(place,'city'):void locate()} tintColor={p.accent}/>}
+    refreshControl={<RefreshControl refreshing={busy} onRefresh={()=>locationMode==='gps'?void locate(true):place?void load(place,'city'):void locate(true)} tintColor={p.accent}/>}
     contentContainerStyle={styles.page}>
   <View style={styles.header}>
     <Text style={{fontSize:43,color:p.accent,marginRight:8}}>☾</Text>
@@ -367,6 +382,7 @@ function Root(){
     <Pressable accessibilityRole="button" accessibilityLabel="Bildirim ayarları" onPress={()=>setScreen('settings')} style={{padding:6}}><Text style={{fontSize:26,color:p.accent}}>♧</Text></Pressable>
     <Pressable accessibilityRole="button" accessibilityLabel="Ayarları aç" onPress={()=>setScreen('settings')} style={[styles.headerAction,{backgroundColor:p.panel,borderColor:p.line}]}><Text style={{color:p.accent,fontSize:22}}>⚙</Text></Pressable>
   </View>
+  {!!locationNotice&&<View accessibilityRole="alert" style={{backgroundColor:p.panel,borderColor:p.line,borderWidth:1,borderRadius:14,padding:12,marginTop:9}}><Text style={{color:p.text,fontWeight:'700'}}>{locationNotice}</Text></View>}
   {screen!=='weather'&&<Pressable accessibilityRole="button" accessibilityLabel="Önceki ekrana dön" onPress={goBack} style={{alignSelf:'flex-start',paddingVertical:10,paddingHorizontal:15,borderRadius:16,borderWidth:1,borderColor:p.line,backgroundColor:p.panel,marginTop:9}}><Text style={{color:p.text,fontSize:14,fontWeight:'700'}}>‹ Geri</Text></Pressable>}
   <View style={[styles.nav,{borderColor:p.line,backgroundColor:p.panel}]}>
     {([['weather','☀  Bugün'],['sky','♄  Gezegenler'],['zodiac','♑  Burcum']] as const).map(([id,title])=>
@@ -374,7 +390,7 @@ function Root(){
        <Text numberOfLines={1} style={[{color:screen===id?p.button:p.text,fontSize:13},serif]}>{title}</Text>
       </Pressable>)}
   </View>
-  {!!error&&panel(<>{txt('⚠️ '+error,14)}{button('Konumumu tekrar dene',()=>void locate(),true)}</>,{marginBottom:15})}
+  {!!error&&panel(<>{txt('⚠️ '+error,14)}{button('Konumumu tekrar dene',()=>void locate(true),true)}</>,{marginBottom:15})}
   {screen==='weather'&&<>
    {panel(<>
      <View style={styles.sectionHeading}><Text style={[{color:p.text,fontSize:19},serif]}>✦ Keşfet</Text><Text style={{color:p.sub,fontSize:11}}>Gökyüzü ve kartlar</Text></View>
@@ -558,7 +574,7 @@ function Root(){
       <View style={{marginTop:8}}>{txt(entry.note,14)}</View>
     </>,{marginTop:12})}</View>)}
   </>}
-  {screen==='settings'&&<>{panel(<>{txt('⌖ Konum ve şehir',22,true)}{txt(place?(locationMode==='gps'?'GPS konumu · ':'Seçilen şehir · ')+place.name+' · '+place.latitude.toFixed(3)+', '+place.longitude.toFixed(3):'Konum bekleniyor',12,false,true)}<View style={styles.search}><TextInput value={query} onChangeText={value=>{setQuery(value);setCityResults([]);}} onSubmitEditing={()=>void searchCity()} returnKeyType="search" placeholder="İstanbul, Ankara, İzmir..." placeholderTextColor={p.sub} style={[styles.input,{backgroundColor:p.input,color:p.text,borderColor:p.line}]}/><Pressable accessibilityRole="button" style={[styles.go,{backgroundColor:p.accent,opacity:busy?.6:1}]} onPress={()=>void searchCity()} disabled={busy}><Text style={{color:p.button,fontWeight:'800'}}>Ara</Text></Pressable></View>{button('⌖ GPS konumumu kullan',()=>void locate(),true)}{!!locationStatus&&txt(locationStatus,12,false,true)}{cityResults.map((result,index)=><Pressable key={result.name+'-'+result.latitude+'-'+index} accessibilityRole="button" onPress={()=>void selectCity(result)} style={[styles.forecast,{borderColor:p.line,paddingHorizontal:8,backgroundColor:p.input,borderRadius:12}]}><Text style={{color:p.text,flex:1,fontWeight:'700'}}>{result.name}{result.admin1&&result.admin1!==result.name?', '+result.admin1:''}{result.country?', '+result.country:''}</Text><Text style={{color:p.accent}}>Seç ›</Text></Pressable>)}</>,{marginBottom:15})}{panel(<>
+  {screen==='settings'&&<>{panel(<>{txt('⌖ Konum ve şehir',22,true)}{txt(place?(locationMode==='gps'?'GPS konumu · ':'Seçilen şehir · ')+place.name+' · '+place.latitude.toFixed(3)+', '+place.longitude.toFixed(3):'Konum bekleniyor',12,false,true)}<View style={styles.search}><TextInput value={query} onChangeText={value=>{setQuery(value);setCityResults([]);}} onSubmitEditing={()=>void searchCity()} returnKeyType="search" placeholder="İstanbul, Ankara, İzmir..." placeholderTextColor={p.sub} style={[styles.input,{backgroundColor:p.input,color:p.text,borderColor:p.line}]}/><Pressable accessibilityRole="button" style={[styles.go,{backgroundColor:p.accent,opacity:busy?.6:1}]} onPress={()=>void searchCity()} disabled={busy}><Text style={{color:p.button,fontWeight:'800'}}>Ara</Text></Pressable></View>{button('⌖ GPS konumumu kullan',()=>void locate(true),true)}{!!locationStatus&&txt(locationStatus,12,false,true)}{cityResults.map((result,index)=><Pressable key={result.name+'-'+result.latitude+'-'+index} accessibilityRole="button" onPress={()=>void selectCity(result)} style={[styles.forecast,{borderColor:p.line,paddingHorizontal:8,backgroundColor:p.input,borderRadius:12}]}><Text style={{color:p.text,flex:1,fontWeight:'700'}}>{result.name}{result.admin1&&result.admin1!==result.name?', '+result.admin1:''}{result.country?', '+result.country:''}</Text><Text style={{color:p.accent}}>Seç ›</Text></Pressable>)}</>,{marginBottom:15})}{panel(<>
    {txt('☆ Favori Şehirler',20,true)}
    {txt('Seçili şehrin hava durumuna tek dokunuşla dön.',12,false,true)}
    {place&&button(favorites.some(x=>Math.abs(x.latitude-place.latitude)<.001&&Math.abs(x.longitude-place.longitude)<.001)?'★ Favorilerden çıkar':'☆ '+place.name+' şehrini ekle',toggleFavorite,true)}
