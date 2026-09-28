@@ -4,6 +4,13 @@ import { fetch as expoFetch } from 'expo/fetch';
 import type { VoiceProfile } from './voiceConfig';
 
 const API = 'https://gokyuzunun-sesi.onrender.com';
+export async function getRabbitAudio(index:number):Promise<string>{
+ const response=await expoFetch(API+'/api/rabbit-audio',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({index})});
+ if(!response.ok)throw new Error(response.status===404?'Ses servisi henüz güncellenmedi.':response.status===409?'Kadın sesi doğrulanamadı.':response.status===402?'Ses sağlayıcısının kredisi tükendi.':response.status===429?'Ses üretim sınırına ulaşıldı.':'Tavşanın sesi alınamadı.');
+ if(!(response.headers.get('content-type')||'').includes('audio/mpeg'))throw new Error('Beklenmeyen ses yanıtı.');
+ const bytes=await response.bytes();if(bytes.length<128||bytes.length>5_000_000)throw new Error('Ses boyutu geçersiz.');
+ const file=new File(Paths.cache,'gokyuzu-tavsan-'+Date.now()+'.mp3');file.create();await file.write(bytes);return file.uri;
+}
 export async function getVoiceProfileStatus():Promise<Record<VoiceProfile,string>> {
  const response=await fetch(API+'/api/voice-profiles');
  if(!response.ok)throw new Error('Ses profilleri alınamadı.');
