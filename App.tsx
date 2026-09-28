@@ -6,7 +6,7 @@ import * as Location from 'expo-location';
 import * as Speech from 'expo-speech';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
-import { getVoiceAudio, getVoiceProfileStatus, getObservationAudio, getCardAudio } from './cloudVoice';
+import { getVoiceAudio, getVoiceProfileStatus, getObservationAudio, getCardAudio, getDailyBriefAudio } from './cloudVoice';
 import { File, Paths } from 'expo-file-system';
 import type { CameraView } from 'expo-camera';
 import type { VoiceProfile } from './voiceConfig';
@@ -16,15 +16,17 @@ import {observationPlan,skyEvents,type AirForecast} from './observationPlan';
 import { CardReadings } from './CardReadings';
 import { ActivityPlanner } from './ActivityPlanner';
 import { SkyEvents } from './SkyEvents';
+import { BirthChart } from './BirthChart';
 import {rainWindows,upcomingSignTransitions,localForecastTime} from './skyInsights';
+import {snapshotForecast,forecastChanges,fetchEnsembleSpread,type EnsembleSpread,type ForecastSnapshot} from './forecastIntelligence';
 import { Compass } from './Compass';
 import { MoonDisc, SkyAtmosphere, SunDisc, ZodiacWheel } from './CelestialVisuals';
-import { dailyNotificationEnabled, setDailyNotification, stopDailyNotification, scheduleWeatherAlerts, stopWeatherAlerts, notifyGpsUpdated } from './notifications';
+import { dailyNotificationEnabled, setDailyNotification, stopDailyNotification, scheduleWeatherAlerts, stopWeatherAlerts, notifyGpsUpdated, enableForecastChangeAlerts, notifyForecastChange } from './notifications';
 
 type Place = { name: string; latitude: number; longitude: number };
 type CityResult={name:string;country?:string;admin1?:string;latitude:number;longitude:number};
-type Screen='weather'|'sky'|'zodiac'|'journal'|'settings'|'moon'|'lens'|'cards'|'observation'|'events'|'compass'|'planner';
-type JournalEntry={id:string;date:string;place:string;mood:string;note:string;sky:string;photoUri?:string};
+type Screen='weather'|'sky'|'zodiac'|'journal'|'settings'|'moon'|'lens'|'cards'|'observation'|'events'|'compass'|'planner'|'birth';
+type JournalEntry={id:string;date:string;place:string;mood:string;note:string;sky:string;photoUri?:string;target?:string;observedAt?:number;latitude?:number;longitude?:number};
 type Weather = {
  utc_offset_seconds?: number;
  current: { temperature_2m: number; apparent_temperature: number; relative_humidity_2m: number; wind_speed_10m: number; weather_code: number; is_day: number };
@@ -82,8 +84,13 @@ function Root(){
  const [busy,setBusy]=useState(false);
  const [error,setError]=useState('');
  const [speaking,setSpeaking]=useState(false);
- const [voiceLoading,setVoiceLoading]=useState<VoiceProfile|'observation'|null>(null);
- const [activeVoice,setActiveVoice]=useState<VoiceProfile|'observation'|null>(null);
+ const [voiceLoading,setVoiceLoading]=useState<VoiceProfile|'observation'|'brief'|null>(null);
+ const [changeAlertsEnabled,setChangeAlertsEnabled]=useState(false);
+ const changeAlertsRef=useRef(false);
+ const [forecastChangeMessage,setForecastChangeMessage]=useState('');
+ const [ensemble,setEnsemble]=useState<EnsembleSpread|null>(null);
+ const [ensembleStatus,setEnsembleStatus]=useState('');
+ const [activeVoice,setActiveVoice]=useState<VoiceProfile|'observation'|'brief'|null>(null);
  const voiceRequestId=useRef(0);
  const player=useAudioPlayer(null);
  const playback=useAudioPlayerStatus(player);
@@ -102,6 +109,7 @@ function Root(){
  const [journal,setJournal]=useState<JournalEntry[]>([]);
  const [mood,setMood]=useState('Sakin');
  const [journalText,setJournalText]=useState('');
+ const [journalTarget,setJournalTarget]=useState('');
  const [journalPhoto,setJournalPhoto]=useState<string|null>(null);
  const [photoCameraOpen,setPhotoCameraOpen]=useState(false);
  const [photoCameraReady,setPhotoCameraReady]=useState(false);
@@ -131,11 +139,11 @@ function Root(){
   const savedPlace=values[0][1],saved=values[1][1];
   if(savedPlace){const p=JSON.parse(savedPlace) as Place;if(Number.isFinite(p.latitude)&&Number.isFinite(p.longitude)){bootPlaceRef.current=p;setPlace(p);}}
   setLocationMode(values[2][1]==='city'?'city':'gps');
-  if(saved){const s=JSON.parse(saved);setVoiceEnabled(s.voiceEnabled??true);setSign(s.sign??'Koç');setHour(s.hour??'08');setMinute(s.minute??'00');setTheme(s.theme??'auto');setRainThreshold(s.rainThreshold??'60');setColdThreshold(s.coldThreshold??'5');setAlertEnabled(s.alertEnabled??false);setVoiceDuration(s.voiceDuration==='brief'?'brief':'full');setVoicePace(s.voicePace==='calm'?'calm':'normal');}
+  if(saved){const s=JSON.parse(saved);setVoiceEnabled(s.voiceEnabled??true);setSign(s.sign??'Koç');setHour(s.hour??'08');setMinute(s.minute??'00');setTheme(s.theme??'auto');setRainThreshold(s.rainThreshold??'60');setColdThreshold(s.coldThreshold??'5');setAlertEnabled(s.alertEnabled??false);changeAlertsRef.current=!!s.changeAlertsEnabled;setChangeAlertsEnabled(!!s.changeAlertsEnabled);setVoiceDuration(s.voiceDuration==='brief'?'brief':'full');setVoicePace(s.voicePace==='calm'?'calm':'normal');}
   if(values[3][1])setFavorites(JSON.parse(values[3][1]));
   if(values[4][1])setJournal(JSON.parse(values[4][1]));
  }).catch(()=>{}).finally(()=>setHydrated(true));},[]);
- useEffect(()=>{if(hydrated)AsyncStorage.setItem('sky.settings',JSON.stringify({voiceEnabled,sign,hour,minute,theme,rainThreshold,coldThreshold,alertEnabled,voiceDuration,voicePace})).catch(()=>{});},[hydrated,voiceEnabled,sign,hour,minute,theme,rainThreshold,coldThreshold,alertEnabled,voiceDuration,voicePace]);
+ useEffect(()=>{if(hydrated)AsyncStorage.setItem('sky.settings',JSON.stringify({voiceEnabled,sign,hour,minute,theme,rainThreshold,coldThreshold,alertEnabled,changeAlertsEnabled,voiceDuration,voicePace})).catch(()=>{});},[hydrated,voiceEnabled,sign,hour,minute,theme,rainThreshold,coldThreshold,alertEnabled,changeAlertsEnabled,voiceDuration,voicePace]);
  useEffect(()=>{if(hydrated)AsyncStorage.setItem('sky.favorites',JSON.stringify(favorites)).catch(()=>{});},[hydrated,favorites]);
  useEffect(()=>{if(hydrated)AsyncStorage.setItem('sky.journal',JSON.stringify(journal)).catch(()=>{});},[hydrated,journal]);
  const load=useCallback(async(p:Place,source:'gps'|'city'='city'):Promise<boolean>=>{
@@ -149,7 +157,18 @@ function Root(){
    const data=await response.json() as Weather;
    if(!data.current||!data.daily?.sunrise?.length||!data.hourly?.time?.length)throw new Error('Bu yer için tahmin bulunamadı.');
    if(loadId!==loadIdRef.current)return false;
-   setWeather(data);setPlace(p);setLocationMode(source);lastFetchRef.current=Date.now();setUpdated(new Date().toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}));await AsyncStorage.multiSet([['sky.place',JSON.stringify(p)],['sky.locationMode',source]]);return true;
+   const fetchedAt=Date.now();
+   const fresh=snapshotForecast(data,p.latitude,p.longitude,fetchedAt);
+   const raw=await AsyncStorage.getItem('sky.forecast.snapshot').catch(()=>null);
+   let previous:ForecastSnapshot|null=null;
+   try{if(raw)previous=JSON.parse(raw) as ForecastSnapshot;}catch{}
+   if(loadId!==loadIdRef.current)return false;
+   const changes=forecastChanges(previous,fresh);
+   setWeather(data);setPlace(p);setLocationMode(source);lastFetchRef.current=fetchedAt;setUpdated(new Date(fetchedAt).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}));
+   setEnsemble(null);setEnsembleStatus('');
+   await AsyncStorage.multiSet([['sky.place',JSON.stringify(p)],['sky.locationMode',source],['sky.forecast.snapshot',JSON.stringify(fresh)]]);
+   if(changes.length){setForecastChangeMessage(changes.join(' '));if(changeAlertsRef.current)void notifyForecastChange(p.name,changes[0]).catch(()=>{});}
+   return true;
   }catch(e){if(loadId===loadIdRef.current)setError(controller.signal.aborted?'Hava tahmini sunucusu zaman aşımına uğradı. Tekrar dene.':e instanceof Error?e.message:'Hava bilgisi alınamadı.');return false;}
   finally{clearTimeout(timer);if(loadId===loadIdRef.current)setBusy(false);}
  },[]);
@@ -220,9 +239,10 @@ function Root(){
  }
  function saveEntry(){
   const note=journalText.trim();
-  if(!note){Alert.alert('Bir not yaz','Gökyüzü günlüğüne kısa bir düşünce ekle.');return;}
-  const entry:JournalEntry={id:String(Date.now()),date:new Date().toLocaleDateString('tr-TR',{day:'numeric',month:'long',year:'numeric'}),place:place?.name||'Konum yok',mood,note:note.slice(0,500),sky:astronomy.phaseName,photoUri:journalPhoto??undefined};
-  setJournal(prev=>[entry,...prev].slice(0,100));setJournalText('');setJournalPhoto(null);
+  if(!note&&!journalPhoto){Alert.alert('Not veya fotoğraf ekle','Gözlemini bir notla veya fotoğrafla kaydet.');return;}
+  const observedAt=Date.now();
+  const entry:JournalEntry={id:String(observedAt),date:new Date(observedAt).toLocaleDateString('tr-TR',{day:'numeric',month:'long',year:'numeric'}),place:place?.name||'Konum yok',mood,note:note.slice(0,500),sky:astronomy.phaseName,photoUri:journalPhoto??undefined,target:journalTarget||undefined,observedAt,latitude:place?.latitude,longitude:place?.longitude};
+  setJournal(prev=>{const next=[entry,...prev].slice(0,100);const dropped=prev.slice(99);for(const old of dropped)if(old.photoUri)try{new File(old.photoUri).delete();}catch{}return next;});setJournalText('');setJournalPhoto(null);setJournalTarget('');
  }
  async function openJournalCamera(){
   try{
@@ -336,6 +356,26 @@ function Root(){
    if(token===voiceRequestId.current)setVoiceLoading(null);
   }
  }
+ async function playDailyBrief(){
+  if(!voiceEnabled){Alert.alert('Ses kapalı','Ayarlar bölümünden sesli rehberi aç.');return;}
+  if(!place||!current||!daily){Alert.alert('Hava verisi bekleniyor','Önce konumu ve hava tahminini yükle.');return;}
+  if(activeVoice==='brief'||voiceLoading==='brief'){voiceRequestId.current++;player.pause();setActiveVoice(null);setVoiceLoading(null);return;}
+  const token=++voiceRequestId.current;player.pause();await Speech.stop();setActiveVoice(null);setVoiceLoading('brief');
+  try{
+   const uri=await getDailyBriefAudio({latitude:place.latitude,longitude:place.longitude,place:place.name,sign,duration:voiceDuration,pace:voicePace,
+    weatherSnapshot:{temp:current.temperature_2m,feels:current.apparent_temperature,wind:current.wind_speed_10m,code:current.weather_code,observedAt:lastFetchRef.current,min:daily.temperature_2m_min[0],max:daily.temperature_2m_max[0],rain:daily.precipitation_probability_max[0],sunrise:rise!,sunset:set!}});
+   if(token!==voiceRequestId.current)return;
+   await setAudioModeAsync({playsInSilentMode:true});player.replace({uri});player.play();setActiveVoice('brief');
+  }catch(e){if(token===voiceRequestId.current)Alert.alert('Günlük özet sesi açılamadı',e instanceof Error?e.message:'Ses alınamadı.');}
+  finally{if(token===voiceRequestId.current)setVoiceLoading(null);}
+ }
+ async function loadEnsemble(){
+  if(!place)return;
+  const loadToken=loadIdRef.current;
+  setEnsembleStatus('Model yayılımı yükleniyor…');setEnsemble(null);
+  try{const result=await fetchEnsembleSpread(place.latitude,place.longitude);if(loadToken===loadIdRef.current){setEnsemble(result);setEnsembleStatus('');}}
+  catch(e){if(loadToken===loadIdRef.current)setEnsembleStatus(e instanceof Error?e.message:'Model yayılımı alınamadı.');}
+ }
  async function playObservation(){
   if(!voiceEnabled){Alert.alert('Ses kapalı','Ayarlar bölümünden sesli rehberi aç.');return;}
   if(activeVoice==='observation'||voiceLoading==='observation'){voiceRequestId.current++;player.pause();setActiveVoice(null);setVoiceLoading(null);return;}
@@ -397,6 +437,18 @@ function Root(){
   </View>
   {!!error&&panel(<>{txt('⚠️ '+error,14)}{button('Konumumu tekrar dene',()=>void locate(true),true)}</>,{marginBottom:15})}
   {screen==='weather'&&<>
+   {panel(<>
+    {txt('☀ Kişisel Gökyüzü Özeti',21,true)}
+    {place&&current&&daily? <>
+     {txt(place.name+' · '+label(current.weather_code)+' · '+num(current.temperature_2m)+'° (hissedilen '+num(current.apparent_temperature)+'°)',14,true)}
+     {txt(nextRain?'☂ '+time(nextRain.date)+' civarında yağış olasılığı %'+num(nextRain.rain)+'.':'Önümüzdeki 12 saatte %50 üstü yağış ihtimali görünmüyor.',13)}
+     {txt('Ay: '+astronomy.phaseName+' (%'+astronomy.illuminated+' aydınlık). '+(events[0]?'Sıradaki takvim olayı: '+events[0].title+'.':''),13)}
+     {txt(sign+' burcu için gezegen konumlarının sembolik yorumunu Burcum bölümünde okuyabilirsin.',12,false,true)}
+     {button(voiceLoading==='brief'?'Ses hazırlanıyor…':activeVoice==='brief'?'■ Özeti durdur':'▶ Hava ve gökyüzü özetini dinle',()=>void playDailyBrief())}
+    </>:txt('Konum ve hava tahmini yükleniyor.',13)}
+   </>,{marginBottom:12})}
+   {!!forecastChangeMessage&&panel(<>{txt('☂ Tahmin değişti',17,true)}{txt(forecastChangeMessage,13)}{button('Mesajı kapat',()=>setForecastChangeMessage(''),true)}</>,{marginBottom:12})}
+
    {panel(<>
      <View style={styles.sectionHeading}><Text style={[{color:p.text,fontSize:19},serif]}>✦ Keşfet</Text><Text style={{color:p.sub,fontSize:11}}>Gökyüzü ve kartlar</Text></View>
      <View style={{flexDirection:'row',flexWrap:'wrap',gap:8,marginTop:12}}>
@@ -465,6 +517,13 @@ function Root(){
       {txt('Önümüzdeki 36 saatte saatlik yağış ihtimalinin %50 ve üstüne çıktığı aralıklar. Yağışın kesin başlayıp biteceği saatler değildir.',12,false,true)}
       {rainPeriods.length?rainPeriods.map(period=><View key={period.start} style={[styles.forecast,{borderColor:p.line}]}><Text style={{fontSize:24}}>☂</Text><View style={{flex:1}}>{txt(localForecastTime(period.start,weather?.utc_offset_seconds??0)+' – '+localForecastTime(period.end,weather?.utc_offset_seconds??0),12,true)}{txt('En yüksek yağış ihtimali %'+num(period.peak)+' · tahmin aralığı',11,false,true)}</View></View>):txt(weather?'Önümüzdeki 36 saatte %50 eşiğini aşan saat görünmüyor. Düşük olasılık sıfır yağış demek değildir.':'Saatlik tahmin yükleniyor.',13,false,true)}
       {button('Saatlik tahmini yenile',()=>locationMode==='gps'?void locate(true):place?void load(place,'city'):void locate(true),true)}
+    </>,{marginTop:15})}
+    {panel(<>
+     {txt('◎ Tahmin Belirsizliği',19,true)}
+     {txt('Ensemble modelinin sıcaklık ve yağış miktarı yayılımı. Küçük yayılım model üyelerinin yakın olduğunu gösterir; tahminin doğru çıkacağını garanti etmez.',12,false,true)}
+     {button('Model yayılımını yükle',()=>void loadEnsemble(),true)}
+     {!!ensembleStatus&&txt(ensembleStatus,12,false,true)}
+     {ensemble&&<>{txt('Kaynak: '+ensemble.model,11,false,true)}{ensemble.time.map((hour,i)=>({hour,at:Date.parse(hour+'Z'),t:ensemble.temperature[i],r:ensemble.precipitation[i]})).filter(item=>item.at>Date.now()&&Number.isFinite(item.t)&&Number.isFinite(item.r)).slice(0,5).map(item=><View key={item.hour} style={[styles.forecast,{borderColor:p.line}]}><View style={{flex:1}}>{txt(new Date(item.at).toLocaleString('tr-TR',{weekday:'short',hour:'2-digit',minute:'2-digit'}),13,true)}{txt('Sıcaklık yayılımı ±'+item.t.toFixed(1)+'°C · yağış miktarı yayılımı '+item.r.toFixed(1)+' mm',11,false,true)}</View></View>)}</>}
     </>,{marginTop:15})}
     {panel(<>{txt('Önümüzdeki günler',19,true)}{daily.time.slice(1,5).map((d,i)=><View key={d} style={[styles.forecast,{borderColor:p.line}]}><Text style={{fontSize:23}}>{symbol(daily.weather_code[i+1],dark)}</Text><View style={{flex:1}}>{txt(new Date(d+'T12:00:00').toLocaleDateString('tr-TR',{weekday:'long',day:'numeric',month:'long'}),13,true)}{txt(label(daily.weather_code[i+1])+' · Yağış %'+num(daily.precipitation_probability_max[i+1]),11,false,true)}</View>{txt(num(daily.temperature_2m_min[i+1])+'° / '+num(daily.temperature_2m_max[i+1])+'°',12,true)}</View>)}</>,{marginTop:15})}
    </>}
@@ -549,6 +608,7 @@ function Root(){
     {txt('Hava kalitesi ölçüsü ve pus tahmini farklı verilerdir. Kaynak: Open-Meteo / CAMS.',11,false,true)}
   </>,{marginTop:15})}</>}
   {screen==='events'&&panel(<SkyEvents p={p} events={events} hourly={weather?.hourly} offsetSeconds={weather?.utc_offset_seconds??0}/>)}
+  {screen==='birth'&&panel(<BirthChart p={p} night={dark}/>)}
   {screen==='zodiac'&&<>
     {panel(<>
       {txt('✧ Burç Çarkı',24,true)}
@@ -565,6 +625,7 @@ function Root(){
       {button(voiceLoading==='astrology'?'⏳ Ses hazırlanıyor…':activeVoice==='astrology'?'■ Durdur':'▶ Astroloji yorumunu dinle',()=>void playVoice('astrology'))}
       {voiceLoading==='astrology'&&<ActivityIndicator color={p.accent}/>}
       {button('🪐 Gezegen konumlarını ve burç geçişlerini gör',()=>setScreen('sky'),true)}
+      {button('✦ Doğum anı haritamı aç',()=>setScreen('birth'),true)}
       <View style={{marginTop:10}}>{txt('Astrolojik semboller bilimsel kişisel öngörü değildir.',11,false,true)}</View>
     </>,{marginTop:15})}
   </>}
@@ -573,6 +634,8 @@ function Root(){
       {txt('✎ Gökyüzü Günlüğüm',23,true)}
       {txt('Bugün nasıl hissediyorsun? Notlar yalnızca bu cihazda saklanır.',12,false,true)}
       <View style={styles.moodRow}>{['Sakin','Neşeli','Düşünceli','Yorgun'].map(m=><Pressable accessibilityRole="button" key={m} onPress={()=>setMood(m)} style={[styles.moodChip,{backgroundColor:mood===m?p.accent:p.input}]}><Text style={{color:mood===m?p.button:p.text,fontSize:12}}>{m}</Text></Pressable>)}</View>
+      {txt('Gökyüzünde ne gördün? (isteğe bağlı)',13,true)}
+      <View style={styles.moodRow}>{['Ay','Venüs','Mars','Jüpiter','Satürn','Meteor','Diğer'].map(item=><Pressable accessibilityRole="button" key={item} onPress={()=>setJournalTarget(journalTarget===item?'':item)} style={[styles.moodChip,{backgroundColor:journalTarget===item?p.accent:p.input}]}><Text style={{color:journalTarget===item?p.button:p.text,fontSize:12}}>{item}</Text></Pressable>)}</View>
       <TextInput multiline maxLength={500} value={journalText} onChangeText={setJournalText} placeholder="Gökyüzüne bakınca bugün neler düşündün?" placeholderTextColor={p.sub} style={[styles.journalInput,{backgroundColor:p.input,color:p.text,borderColor:p.line}]}/>
       {button('📷 Gökyüzünün fotoğrafını ekle',()=>void openJournalCamera(),true)}
       {journalPhoto&&<View><Image source={{uri:journalPhoto}} style={{width:'100%',height:180,borderRadius:16,marginTop:12}}/>{button('Fotoğrafı kaldır',()=>{try{new File(journalPhoto).delete();}catch{}setJournalPhoto(null);},true)}</View>}
@@ -580,9 +643,9 @@ function Root(){
     </>)}
     {journal.map(entry=><View key={entry.id}>{panel(<>
       <View style={styles.sectionHeading}>{txt(entry.date+' · '+entry.mood,15,true)}<Pressable accessibilityRole="button" accessibilityLabel="Günlük kaydını sil" onPress={()=>Alert.alert('Kaydı sil','Bu günlük notunu silmek istiyor musun?', [{text:'Vazgeç',style:'cancel'},{text:'Sil',style:'destructive',onPress:()=>{if(entry.photoUri)try{new File(entry.photoUri).delete();}catch{}setJournal(prev=>prev.filter(e=>e.id!==entry.id));}}])}><Text style={{color:p.accent,fontSize:16}}>✕</Text></Pressable></View>
-      {txt(entry.place+' · '+entry.sky,12,false,true)}
+      {txt(entry.place+' · '+entry.sky+(entry.target?' · Gözlem: '+entry.target:'')+(entry.observedAt?' · '+new Date(entry.observedAt).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}):''),12,false,true)}
       {entry.photoUri&&<Image source={{uri:entry.photoUri}} style={{width:'100%',height:210,borderRadius:16,marginTop:10}}/>}
-      <View style={{marginTop:8}}>{txt(entry.note,14)}</View>
+      <View style={{marginTop:8}}>{entry.note?txt(entry.note,14):txt('Fotoğraflı gözlem',13,false,true)}</View>
     </>,{marginTop:12})}</View>)}
   </>}
   {screen==='settings'&&<>{panel(<>{txt('⌖ Konum ve şehir',22,true)}{txt(place?(locationMode==='gps'?'GPS konumu · ':'Seçilen şehir · ')+place.name+' · '+place.latitude.toFixed(3)+', '+place.longitude.toFixed(3):'Konum bekleniyor',12,false,true)}<View style={styles.search}><TextInput value={query} onChangeText={value=>{setQuery(value);setCityResults([]);}} onSubmitEditing={()=>void searchCity()} returnKeyType="search" placeholder="İstanbul, Ankara, İzmir..." placeholderTextColor={p.sub} style={[styles.input,{backgroundColor:p.input,color:p.text,borderColor:p.line}]}/><Pressable accessibilityRole="button" style={[styles.go,{backgroundColor:p.accent,opacity:busy?.6:1}]} onPress={()=>void searchCity()} disabled={busy}><Text style={{color:p.button,fontWeight:'800'}}>Ara</Text></Pressable></View>{button('⌖ GPS konumumu kullan',()=>void locate(true),true)}{!!locationStatus&&txt(locationStatus,12,false,true)}{cityResults.map((result,index)=><Pressable key={result.name+'-'+result.latitude+'-'+index} accessibilityRole="button" onPress={()=>void selectCity(result)} style={[styles.forecast,{borderColor:p.line,paddingHorizontal:8,backgroundColor:p.input,borderRadius:12}]}><Text style={{color:p.text,flex:1,fontWeight:'700'}}>{result.name}{result.admin1&&result.admin1!==result.name?', '+result.admin1:''}{result.country?', '+result.country:''}</Text><Text style={{color:p.accent}}>Seç ›</Text></Pressable>)}</>,{marginBottom:15})}{panel(<>
@@ -592,6 +655,9 @@ function Root(){
    {favorites.map(city=><View key={city.latitude+':'+city.longitude} style={[styles.forecast,{borderColor:p.line}]}><Pressable accessibilityRole="button" style={{flex:1}} onPress={()=>{locationActionRef.current++;void load(city,'city').then(ok=>{if(ok){setLocationStatus(city.name+' seçildi.');setScreen('weather');}});}}>{txt('⌖ '+city.name,14,true)}{txt('Hava durumunu aç  ›',11,false,true)}</Pressable><Pressable accessibilityRole="button" accessibilityLabel={city.name+' favorisini kaldır'} onPress={()=>setFavorites(prev=>prev.filter(x=>x.latitude!==city.latitude||x.longitude!==city.longitude))}><Text style={{color:p.accent,fontSize:18}}>✕</Text></Pressable></View>)}
   </>,{marginBottom:15})}{panel(<>{txt('⚙️ Görünüm',22,true)}{txt('Otomatik tema, seçili konumun güneş doğuş ve batış saatlerini izler.',13,false,true)}<View style={styles.nav}>{(['auto','day','night'] as const).map((v)=><Pressable key={v} onPress={()=>setTheme(v)} style={[styles.navItem,{backgroundColor:theme===v?p.accent:p.input}]}><Text style={{color:theme===v?p.button:p.text,fontWeight:'800'}}>{v==='auto'?'Otomatik':v==='day'?'☀️ Gündüz':'🌙 Gece'}</Text></Pressable>)}</View></>)}{panel(<>{txt('🎙️ Seslendirme',22,true)}<View style={styles.switchRow}>{txt('Sesli rehber',15)}<Switch value={voiceEnabled} onValueChange={setVoiceEnabled}/></View>{txt('Hava durumu ve astroloji için ayrı Türkçe ses profilleri kullanılır. Kadın ses profili doğrulanamazsa oynatma durur; cihazın erkek sesine geçilmez.',12,false,true)}{voiceProfiles&&txt('Hava sesi: '+(voiceProfiles.weather==='female'?'kadın etiketi doğrulandı':voiceProfiles.weather==='female-description-unverified'?'kadın ses açıklaması; dinleyerek kontrol et':'ses doğrulanamadı')+' · Astroloji sesi: '+(voiceProfiles.astrology==='female'?'kadın etiketi doğrulandı':voiceProfiles.astrology==='female-description-unverified'?'kadın ses açıklaması; dinleyerek kontrol et':'ses doğrulanamadı'),12,false,true)}{txt('Anlatım uzunluğu',14,true)}<View style={styles.moodRow}>{(['brief','full'] as const).map(v=><Pressable key={v} accessibilityRole="button" onPress={()=>setVoiceDuration(v)} style={[styles.moodChip,{backgroundColor:voiceDuration===v?p.accent:p.input}]}><Text style={{color:voiceDuration===v?p.button:p.text}}>{v==='brief'?'Kısa özet':'Tam anlatım'}</Text></Pressable>)}</View>{txt('Ses temposu',14,true)}<View style={styles.moodRow}>{(['normal','calm'] as const).map(v=><Pressable key={v} accessibilityRole="button" onPress={()=>setVoicePace(v)} style={[styles.moodChip,{backgroundColor:voicePace===v?p.accent:p.input}]}><Text style={{color:voicePace===v?p.button:p.text}}>{v==='calm'?'Sakin, yavaş':'Normal'}</Text></Pressable>)}</View>{txt('Dinleme saatini aşağıdaki günlük hatırlatma bölümünden seçebilirsin. Ses yalnızca dinle düğmesine bastığında çalar.',12,false,true)}{button(voiceLoading==='weather'?'⏳ Ses hazırlanıyor…':activeVoice==='weather'?'■ Hava sesini durdur':'▶ Hava sesini dene',()=>void playVoice('weather'))}{button(voiceLoading==='astrology'?'⏳ Ses hazırlanıyor…':activeVoice==='astrology'?'■ Astroloji sesini durdur':'▶ Astroloji sesini dene',()=>void playVoice('astrology'),true)}</>,{marginTop:15})}{panel(<>{txt('⏰ Hatırlatma tercihi',22,true)}{txt('Seçtiğin saatte günlük yerel hatırlatma gönderilir. Bildirim yeni hava verisi değil, uygulamayı açma hatırlatmasıdır.',13,false,true)}<View style={styles.search}><TextInput keyboardType="number-pad" maxLength={2} accessibilityLabel="Saat" value={hour} onChangeText={setHour} style={[styles.timeInput,{backgroundColor:p.input,color:p.text}]}/>{txt(':',24,true)}<TextInput keyboardType="number-pad" maxLength={2} accessibilityLabel="Dakika" value={minute} onChangeText={setMinute} style={[styles.timeInput,{backgroundColor:p.input,color:p.text}]}/></View>{button(notificationActive?'Hatırlatma saatini güncelle':'Günlük bildirimi aç',()=>{void (async()=>{if(!/^\d{1,2}$/.test(hour)||!/^\d{1,2}$/.test(minute)||Number(hour)>23||Number(minute)>59){Alert.alert('Geçersiz saat','00:00–23:59 arasında bir saat gir.');return;}try{await setDailyNotification(Number(hour),Number(minute));setHour(hour.padStart(2,'0'));setMinute(minute.padStart(2,'0'));setNotificationActive(true);Alert.alert('Bildirim kuruldu', 'Her gün '+hour.padStart(2,'0')+':'+minute.padStart(2,'0')+' saatinde hatırlatma planlandı.');}catch(e){Alert.alert('Bildirim açılamadı',e instanceof Error?e.message:'Bildirim iznini kontrol et.');}})();})}
   {notificationActive&&button('Bildirimleri kapat',()=>{void stopDailyNotification().then(()=>{setNotificationActive(false);Alert.alert('Kapatıldı','Günlük hatırlatma iptal edildi.');}).catch(()=>Alert.alert('Hata','Bildirim kaldırılamadı.'));},true)}</>,{marginTop:15})}{panel(<>
+   {txt('⇄ Değişen Tahmin Bildirimleri',21,true)}
+   {txt('Bu cihazda uygulama açıldığında veya tahmin yenilendiğinde aynı konumun eski ve yeni saatlik verileri karşılaştırılır. Uygulama kapalıyken sürekli tarama yapılmaz.',12,false,true)}
+   {button(changeAlertsEnabled?'Değişiklik bildirimlerini kapat':'Değişiklik bildirimlerini aç',()=>{void (async()=>{if(changeAlertsEnabled){changeAlertsRef.current=false;setChangeAlertsEnabled(false);return;}try{await enableForecastChangeAlerts();changeAlertsRef.current=true;setChangeAlertsEnabled(true);Alert.alert('Açıldı','Tahmin değişiklikleri uygulamayı açtığında veya yenilediğinde bildirilecek.');}catch(e){Alert.alert('Bildirim açılamadı',e instanceof Error?e.message:'İzin gerekli.');}})();},true)}
    {txt('☂ Akıllı Hava Uyarıları',21,true)}
    {txt('Uygulama açıldığında güncel tahmine bakıp önümüzdeki 36 saat için yerel uyarı planlar. Hava değişirse uygulamayı yeniden açman gerekir; sesli bildirim değildir.',12,false,true)}
    <View style={styles.search}><View style={{flex:1}}>{txt('Yağış ≥ %',12,false,true)}<TextInput keyboardType="number-pad" maxLength={3} value={rainThreshold} onChangeText={setRainThreshold} style={[styles.timeInput,{width:'100%',backgroundColor:p.input,color:p.text}]}/></View><View style={{flex:1}}>{txt('Sıcaklık ≤ °C',12,false,true)}<TextInput keyboardType="numbers-and-punctuation" maxLength={3} value={coldThreshold} onChangeText={setColdThreshold} style={[styles.timeInput,{width:'100%',backgroundColor:p.input,color:p.text}]}/></View></View>
