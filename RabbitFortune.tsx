@@ -46,12 +46,10 @@ export function RabbitFortune({p,onJournal,playAudio}:{p:Palette;onJournal:(text
   Animated.timing(rotation,{toValue:next,duration:reducedMotion?250:2800,easing:Easing.out(Easing.cubic),useNativeDriver:true}).start(({finished})=>{
    if(!finished||!alive.current){busy.current=false;return;}
    turn.current=next;setPhase('draw');
-   Animated.sequence([
-    Animated.parallel([
-     Animated.timing(rabbit,{toValue:1,duration:reducedMotion?100:650,easing:Easing.out(Easing.quad),useNativeDriver:true}),
-     Animated.sequence([Animated.timing(hops,{toValue:1,duration:reducedMotion?50:320,useNativeDriver:true}),Animated.timing(hops,{toValue:0,duration:reducedMotion?50:330,useNativeDriver:true})]),
-    ]),
-    Animated.timing(paper,{toValue:1,duration:reducedMotion?100:750,easing:Easing.out(Easing.back(1.4)),useNativeDriver:true}),
+   Animated.parallel([
+    Animated.timing(rabbit,{toValue:1,duration:reducedMotion?160:850,easing:Easing.out(Easing.quad),useNativeDriver:true}),
+    Animated.sequence([Animated.timing(hops,{toValue:1,duration:reducedMotion?80:410,useNativeDriver:true}),Animated.timing(hops,{toValue:0,duration:reducedMotion?80:440,useNativeDriver:true})]),
+    Animated.timing(paper,{toValue:1,duration:reducedMotion?160:850,easing:Easing.out(Easing.quad),useNativeDriver:true}),
    ]).start(({finished:drawn})=>{
     if(!drawn||!alive.current){busy.current=false;return;}
    setChosen(choice);setPhase('result');setSpinning(false);busy.current=false;setDaily(true);setOpenedDates(prev=>{const next=[date,...prev.filter(item=>item!==date)].slice(0,30);void AsyncStorage.multiSet([['sky.rabbit.daily',date],['sky.rabbit.opened',JSON.stringify(next)]]);return next;});
@@ -88,11 +86,14 @@ export function RabbitFortune({p,onJournal,playAudio}:{p:Palette;onJournal:(text
     <View style={{height:74,width:74,borderRadius:37,backgroundColor:p.accent,alignItems:'center',justifyContent:'center'}}><Text style={{color:p.button,fontSize:28}}>✦</Text></View>
    </Animated.View>
   </View>
-  <View style={{height:125,alignItems:'center',justifyContent:'center',flexDirection:'row',overflow:'hidden'}}>
-   <Animated.View style={{alignItems:'center',transform:[{translateX:rabbit.interpolate({inputRange:[0,1],outputRange:[-48,6]})},{translateY:hops.interpolate({inputRange:[0,1],outputRange:[0,-20]})}]}}><Text style={{fontSize:15,marginBottom:-18,zIndex:2}}>{character==='Bilge Tavşan'?'🎓':character==='Romantik Tavşan'?'🎀':'🧢'}</Text><Text style={{fontSize:62}}>🐇</Text></Animated.View>
-   <Animated.View style={{marginLeft:8,alignItems:'center',transform:[{translateY:paper.interpolate({inputRange:[0,1],outputRange:[-115,20]})},{rotate:paper.interpolate({inputRange:[0,1],outputRange:['-18deg','0deg']})}]}}><Text style={{fontSize:48}}>{phase==='idle'?'✉️':'📜'}</Text></Animated.View>
+  <View style={{height:165,width:280,alignSelf:'center',overflow:'hidden'}}>
+   <Animated.View accessibilityLabel={character+' notu yakalıyor'} style={{position:'absolute',left:100,top:43,width:125,height:120,transform:[{translateX:rabbit.interpolate({inputRange:[0,1],outputRange:[32,-10]})},{translateY:hops.interpolate({inputRange:[0,1],outputRange:[0,-18]})}]}}>
+    <Text style={{fontSize:95,lineHeight:110}}>🐇</Text>
+    <Text style={{position:'absolute',left:39,top:-8,fontSize:39}}>{character==='Bilge Tavşan'?'🎓':character==='Romantik Tavşan'?'🎀':'🎉'}</Text>
+   </Animated.View>
+   {phase!=='spin'&&<Animated.View style={{position:'absolute',left:65,top:0,transform:[{translateX:paper.interpolate({inputRange:[0,1],outputRange:[0,22]})},{translateY:paper.interpolate({inputRange:[0,1],outputRange:[-65,89]})},{rotate:paper.interpolate({inputRange:[0,1],outputRange:['-15deg','8deg']})}]}}><Text style={{fontSize:51}}>{phase==='idle'?'✉️':'📜'}</Text></Animated.View>}
   </View>
-  {phase==='draw'&&<Text style={{color:p.sub,textAlign:'center',marginBottom:12}}>Tavşan kâğıdını çekiyor…</Text>}
+  {phase==='draw'&&<Text style={{color:p.sub,textAlign:'center',marginBottom:12}}>Not tavşanın patisine iniyor…</Text>}
   <Pressable accessibilityRole="button" accessibilityLabel="Tavşanlı şans çarkını çevir" disabled={spinning} onPress={spin} style={{backgroundColor:p.accent,borderRadius:15,padding:16,alignItems:'center',opacity:spinning?.6:1}}><Text style={{fontSize:16,fontWeight:'800',color:p.button}}>{spinning?'Çark dönüyor…':'✦ Çarkı çevir'}</Text></Pressable>
   <Text style={{color:p.sub,fontSize:13,fontWeight:'700',marginTop:18}}>Tavşana bir soru bırak</Text>
   <TextInput value={question} onChangeText={value=>{setQuestion(value);setReading('');setReadingError('');}} placeholder="Bugün neyi bilmek istersin?" placeholderTextColor={p.sub} multiline style={{minHeight:48,maxHeight:90,borderWidth:1,borderColor:p.line,borderRadius:13,padding:12,color:p.text,backgroundColor:p.input,marginTop:7}} />
