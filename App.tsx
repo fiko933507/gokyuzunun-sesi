@@ -14,6 +14,7 @@ import { skyAt, symbolicReading } from './astronomy';
 import { skyViewingWindows, moonCalendar } from './skyDiscovery';
 import {observationPlan,skyEvents,type AirForecast} from './observationPlan';
 import { CardReadings } from './CardReadings';
+import { Compass } from './Compass';
 import { MoonDisc, SkyAtmosphere, SunDisc, ZodiacWheel } from './CelestialVisuals';
 import { dailyNotificationEnabled, setDailyNotification, stopDailyNotification, scheduleWeatherAlerts, stopWeatherAlerts } from './notifications';
 
@@ -38,7 +39,7 @@ const time=(s?:string)=>s?.split('T')[1]?.slice(0,5)||'—';
 const num=(n?:number)=>Number.isFinite(n)?String(Math.round(n!)):'—';
 function currentIsNight(w:Weather){return w.current.is_day!==1;}
 function Root(){
- const [screen,setScreen]=useState<'weather'|'sky'|'zodiac'|'journal'|'settings'|'moon'|'lens'|'cards'|'observation'|'events'>('weather');
+ const [screen,setScreen]=useState<'weather'|'sky'|'zodiac'|'journal'|'settings'|'moon'|'lens'|'cards'|'observation'|'events'|'compass'>('weather');
  const [weather,setWeather]=useState<Weather|null>(null);
  const [air,setAir]=useState<AirForecast|null>(null);
  const [airError,setAirError]=useState(false);
@@ -322,7 +323,7 @@ function Root(){
    {panel(<>
      <View style={styles.sectionHeading}><Text style={[{color:p.text,fontSize:19},serif]}>✦ Keşfet</Text><Text style={{color:p.sub,fontSize:11}}>Gökyüzü ve kartlar</Text></View>
      <View style={{flexDirection:'row',flexWrap:'wrap',gap:8,marginTop:12}}>
-      {([['observation','☾','Gözlem planı'],['events','✧','Gök olayları'],['cards','✦','Kart yorumları'],['observation','◌','Gece havası']] as const).map(([destination,icon,title])=><Pressable key={title} accessibilityRole="button" accessibilityLabel={title+' ekranını aç'} onPress={()=>setScreen(destination)} style={{width:'48%',flexGrow:1,flexDirection:'row',alignItems:'center',gap:8,borderWidth:1,borderColor:p.line,backgroundColor:p.input,borderRadius:14,paddingVertical:11,paddingHorizontal:9}}><Text style={{color:p.accent,fontSize:23}}>{icon}</Text><Text numberOfLines={1} style={{color:p.text,fontSize:12,fontWeight:'700',flexShrink:1}}>{title}</Text></Pressable>)}
+      {([['observation','☾','Gözlem planı'],['events','✧','Gök olayları'],['cards','✦','Kart yorumları'],['compass','⊕','Pusula']] as const).map(([destination,icon,title])=><Pressable key={title} accessibilityRole="button" accessibilityLabel={title+' ekranını aç'} onPress={()=>setScreen(destination)} style={{width:'48%',flexGrow:1,flexDirection:'row',alignItems:'center',gap:8,borderWidth:1,borderColor:p.line,backgroundColor:p.input,borderRadius:14,paddingVertical:11,paddingHorizontal:9}}><Text style={{color:p.accent,fontSize:23}}>{icon}</Text><Text numberOfLines={1} style={{color:p.text,fontSize:12,fontWeight:'700',flexShrink:1}}>{title}</Text></Pressable>)}
      </View>
    </>,{marginBottom:12})}
    <View style={[styles.hero,{backgroundColor:p.hero}]}>
@@ -442,6 +443,7 @@ function Root(){
     {button('‹ Gezegenlere dön',()=>setScreen('sky'),true)}
   </>)}
   {screen==='cards'&&panel(<CardReadings p={p}/>)}
+  {screen==='compass'&&panel(<><Compass p={p} targets={plan?.targets}/>{button('‹ Gözlem planına dön',()=>setScreen('observation'),true)}</>)}
   {screen==='observation'&&<>{panel(<>
     {txt('✦ Bu Gece Nereye Bakayım?',22,true)}
     {!plan?txt('Konum ve gece hava tahmini bekleniyor. Tahmin gelince gözlem planı burada görünecek.',13,false,true):<>
@@ -452,6 +454,7 @@ function Root(){
      {button(voiceLoading==='observation'?'Ses hazırlanıyor…':activeVoice==='observation'?'■ Rehberi durdur':'▶ Sesli gözlem rehberini dinle',()=>void playObservation())}
      {button('☷ Gözlem saatini takvim dosyası olarak paylaş',()=>void shareObservationCalendar(),true)}
      {button('✦ Gökyüzüne tut',()=>setScreen('lens'),true)}
+     {button('⊕ Pusulayı aç',()=>setScreen('compass'),true)}
      {txt('Pusula yönü yaklaşık değerdir. Hava tahmini ve ışık kirliliği gerçek gözlemi değiştirebilir.',11,false,true)}
     </>}
   </>)}{panel(<>
