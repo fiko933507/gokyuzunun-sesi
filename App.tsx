@@ -293,7 +293,7 @@ function Root(){
   try{
    const request=profile==='weather'
      ? {profile:'weather' as const,duration:voiceDuration,pace:voicePace,latitude:place!.latitude,longitude:place!.longitude,place:place!.name,
-        weatherSnapshot:{temp:current!.temperature_2m,feels:current!.apparent_temperature,wind:current!.wind_speed_10m,code:current!.weather_code,
+        weatherSnapshot:{temp:current!.temperature_2m,feels:current!.apparent_temperature,wind:current!.wind_speed_10m,code:current!.weather_code,observedAt:lastFetchRef.current,
           min:daily!.temperature_2m_min[0],max:daily!.temperature_2m_max[0],rain:daily!.precipitation_probability_max[0],sunrise:rise!,sunset:set!}}
      : {profile:'astrology' as const,sign,duration:voiceDuration,pace:voicePace};
    const uri=await getVoiceAudio(request);
