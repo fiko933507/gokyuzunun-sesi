@@ -1,10 +1,12 @@
 import type * as NotificationTypes from 'expo-notifications';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
 const KEY='sky.local.notification.id';
 const WEATHER_KEY='sky.weather.notification.ids';
 export type AlertHours={time:string[];precipitation_probability:number[];temperature_2m:number[]};
 async function notificationModule():Promise<typeof NotificationTypes>{
+ if(Constants.appOwnership==='expo')throw new Error('Bu Expo Go sürümünde yerel bildirim modülü bulunmuyor. Bildirimler için uygulamanın geliştirme derlemesini kullan.');
  try{return await import('expo-notifications');}
  catch{throw new Error('Bu Expo Go sürümü bildirim modülünü desteklemiyor. Expo Go’yu güncelle veya uygulamanın geliştirme derlemesini kullan.');}
 }
@@ -28,6 +30,7 @@ export async function stopDailyNotification(){
  if(id){await Notifications.cancelScheduledNotificationAsync(id);await AsyncStorage.removeItem(KEY);}
 }
 export async function dailyNotificationEnabled(){
+ if(Constants.appOwnership==='expo')return false;
  const id=await AsyncStorage.getItem(KEY);
  if(!id)return false;
  const Notifications=await notificationModule();
@@ -67,6 +70,7 @@ export async function stopWeatherAlerts(){
 
 /** Notify only after a successful GPS and forecast refresh; never request permission during automatic refreshes. */
 export async function notifyGpsUpdated(place:string,requestPermission=false){
+ if(Constants.appOwnership==='expo')return false;
  const Notifications=await notificationModule();
  const permission=requestPermission?await Notifications.requestPermissionsAsync():await Notifications.getPermissionsAsync();
  if(!permission.granted)return false;
