@@ -40,9 +40,11 @@ async function generateCardReading(input,{key=process.env.OPENAI_API_KEY,fetchIm
   if(!reply.ok){
    // Inspect only the provider's machine-readable code; never log its body or user text.
    const failure=await reply.json().catch(()=>({}));
-   const quota=reply.status===429&&failure?.error?.code==='insufficient_quota';
+   const raw=failure?.error?.code||failure?.error?.type;
+   const providerCode=typeof raw==='string'&&/^[a-z_]{1,48}$/.test(raw)?raw:'unknown';
+   const quota=reply.status===429&&['insufficient_quota','billing_hard_limit_reached','billing_not_active'].includes(providerCode);
    const code=quota?'provider_quota':reply.status===401||reply.status===403?'provider_auth':reply.status===429?'provider_busy':'provider_unavailable';
-   throw Object.assign(new Error('AI provider unavailable'),{status:code==='provider_busy'?429:503,code,providerStatus:reply.status});
+   throw Object.assign(new Error('AI provider unavailable'),{status:code==='provider_busy'?429:503,code,providerStatus:reply.status,providerCode});
   }
   const data=await reply.json();
   const text=data.output?.flatMap(item=>item.content||[]).filter(item=>item.type==='output_text').map(item=>item.text||'').join('\n').trim();
