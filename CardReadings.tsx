@@ -3,6 +3,7 @@ import {ActivityIndicator,Pressable,Text,TextInput,View} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {DECKS,deckIds,shuffledCards,type Card,type DeckId} from './cardDecks';
 import {getCardReading} from './cardReadingApi';
+import {localCardReading} from './localCardReading';
 
 type Palette={panel:string;line:string;text:string;sub:string;accent:string;input:string;button:string};
 type HistoryEntry={id:string;date:string;deck:DeckId;spread:'daily'|'three';cards:string[];reading:string};
@@ -14,6 +15,7 @@ export function CardReadings({p}:{p:Palette}){
  const [selected,setSelected]=useState<Card[]>([]);
  const [question,setQuestion]=useState('');
  const [reading,setReading]=useState('');
+ const [readingSource,setReadingSource]=useState<'ai'|'local'>('ai');
  const [error,setError]=useState('');
  const [loading,setLoading]=useState(false);
  const [history,setHistory]=useState<HistoryEntry[]>([]);
@@ -40,11 +42,11 @@ export function CardReadings({p}:{p:Palette}){
   setLoading(true);setError('');
   try{
    const result=await getCardReading(deck,spread,selected,question);
-   setReading(result);
+   setReading(result);setReadingSource('ai');
    const record:HistoryEntry={id:Date.now()+'-'+Math.random(),date:new Date().toLocaleString('tr-TR'),deck,spread,cards:selected.map(card=>card.id),reading:result};
    setHistory(previous=>{const next=[record,...previous].slice(0,30);void AsyncStorage.setItem(HISTORY_KEY,JSON.stringify(next));return next;});
   }
-  catch(e){setError(e instanceof Error?e.message:'Yorum alınamadı.');}
+ catch(e){setError(e instanceof Error?e.message:'Yorum alınamadı.');}
   finally{setLoading(false);}
  }
  const line={borderColor:p.line},cardBackground={backgroundColor:p.panel};
@@ -61,7 +63,8 @@ export function CardReadings({p}:{p:Palette}){
   {selected.length===(spread==='daily'?1:3)&&<Pressable accessibilityRole="button" disabled={loading} onPress={()=>void interpret()} style={{backgroundColor:p.accent,padding:16,borderRadius:17,alignItems:'center'}}><Text style={{color:p.button,fontWeight:'800'}}>{loading?'Yorum hazırlanıyor…':'✦ Yapay zekâ ile yorumla'}</Text></Pressable>}
   {loading&&<ActivityIndicator color={p.accent}/>}
   {!!error&&<Text style={{color:p.text,fontSize:13}}>{error}</Text>}
-  {!!reading&&<View style={{padding:16,borderRadius:18,borderWidth:1,...line,...cardBackground}}><Text style={{color:p.accent,fontSize:20,fontFamily:'serif',marginBottom:9}}>Gökyüzünden bir yorum</Text><Text style={{color:p.text,fontSize:15,lineHeight:24}}>{reading}</Text></View>}
+  {!!error&&selected.length===(spread==='daily'?1:3)&&<Pressable accessibilityRole="button" onPress={()=>{setReading(localCardReading(selected,spread));setReadingSource('local');setError('');}} style={{padding:13,borderRadius:14,backgroundColor:p.input,borderWidth:1,...line}}><Text style={{color:p.accent,fontWeight:'700',textAlign:'center'}}>Sunucusuz sembolik yorum göster</Text></Pressable>}
+  {!!reading&&<View style={{padding:16,borderRadius:18,borderWidth:1,...line,...cardBackground}}><Text style={{color:p.accent,fontSize:20,fontFamily:'serif',marginBottom:9}}>{readingSource==='ai'?'Gökyüzünden bir yorum':'Yerel sembolik yorum'}</Text><Text style={{color:p.text,fontSize:15,lineHeight:24}}>{reading}</Text>{readingSource==='local'&&<Text style={{color:p.sub,fontSize:11,marginTop:10}}>Bu metin kartların kayıtlı anlamlarından telefonda oluşturuldu; yapay zekâ yanıtı değildir.</Text>}</View>}
   {spread==='three'&&selected.length>0&&<Pressable accessibilityRole="button" onPress={restart} style={{padding:12,alignItems:'center'}}><Text style={{color:p.accent,fontWeight:'700'}}>Kartları yeniden karıştır</Text></Pressable>}
   <Pressable accessibilityRole="button" onPress={()=>setHistoryOpen(!historyOpen)} style={{paddingVertical:12,borderTopWidth:1,...line}}><Text style={{color:p.accent,fontSize:17,fontWeight:'700'}}>☾ Kart geçmişim ({history.length}) {historyOpen?'⌄':'›'}</Text></Pressable>
   {historyOpen&&history.map(item=><View key={item.id} style={{padding:13,borderRadius:17,borderWidth:1,...line,...cardBackground}}><Text style={{color:p.sub,fontSize:11}}>{item.date} · {DECKS[item.deck]?.title} · {item.spread==='daily'?'Günün kartı':'Üç kart'}</Text><Text style={{color:p.text,fontWeight:'700',marginVertical:7}}>{item.cards.map(id=>DECKS[item.deck]?.cards.find(card=>card.id===id)?.name||id).join(' · ')}</Text><Text style={{color:p.text,lineHeight:21}}>{item.reading}</Text><Pressable accessibilityRole="button" onPress={()=>{setHistory(prev=>{const next=prev.filter(entry=>entry.id!==item.id);void AsyncStorage.setItem(HISTORY_KEY,JSON.stringify(next));return next;});}} style={{alignSelf:'flex-end',padding:8}}><Text style={{color:p.accent}}>Kaydı sil</Text></Pressable></View>)}
