@@ -64,3 +64,17 @@ export async function stopWeatherAlerts(){
  await Promise.all(ids.map(id=>Notifications.cancelScheduledNotificationAsync(id).catch(()=>{})));
  await AsyncStorage.removeItem(WEATHER_KEY);
 }
+
+/** Notify only after a successful GPS and forecast refresh; never request permission during automatic refreshes. */
+export async function notifyGpsUpdated(place:string,requestPermission=false){
+ const Notifications=await notificationModule();
+ const permission=requestPermission?await Notifications.requestPermissionsAsync():await Notifications.getPermissionsAsync();
+ if(!permission.granted)return false;
+ if(Platform.OS==='android')await Notifications.setNotificationChannelAsync('sky-location',{name:'Konum güncellemeleri',importance:Notifications.AndroidImportance.DEFAULT});
+ Notifications.setNotificationHandler({handleNotification:async()=>({shouldShowBanner:true,shouldShowList:true,shouldPlaySound:false,shouldSetBadge:false})});
+ await Notifications.scheduleNotificationAsync({
+  content:{title:'⌖ Konumun güncellendi',body:place+' için GPS konumu ve hava tahmini yenilendi.',sound:false},
+  trigger:Platform.OS==='android'?{type:Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,seconds:1,channelId:'sky-location'}:null
+ });
+ return true;
+}
