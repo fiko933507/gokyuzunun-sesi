@@ -10,6 +10,11 @@ Gündüz açık ve gece lacivert-mor atmosferde çalışan Türkçe gökyüzü u
 - Gök Olayları Takvimi: Ay evreleri ve listelenen meteor zirvesi geceleri için etkinlik başına yerel bildirim; en fazla 16 takip, isteğe bağlı paylaşım ve saatlik tahmin varsa yağış/bulut ön izlemesi. Uzak tarihler için henüz hava tahmini sunulmaz.
 - Hava durumu: saatlik tahminlerden önümüzdeki 36 saatte yağış ihtimalinin %50 eşiğini aştığı zaman pencereleri, en yüksek olasılık ve tek dokunuşla tahmin yenileme. Zamanlar yağışın kesin başlangıcı veya bitişi değildir.
 - Astroloji: önümüzdeki 14 gün için astronomik gezegen koordinatlarından hesaplanan tropikal burç geçişleri; sembolik yorumlar kişisel etkileri kanıtlamaz.
+- Kişisel Gökyüzü Özeti: hava, Ay evresi, yaklaşan takvim olayı ve burç bölümünü tek ekranda birleştirir; isteğe bağlı kadın sesli hava/astroloji anlatımı sunucuda yalnızca doğrulanmış verilerle oluşturulur (ElevenLabs kredisi ve günlük ses sınırı geçerlidir).
+- Değişen Tahmin: aynı konumun kayıtlı ve yeni saatlik tahmini karşılaştırılır. Yağış olasılığı belirgin artarsa veya sıcaklık en az 5°C oynarsa kullanıcı izin verdiyse yerel bildirim gönderilir. Kontrol yalnızca uygulama açılınca ve yenilenince yapılır; kapalı uygulamada sürekli arka plan izlemesi iddia edilmez.
+- Model belirsizliği: isteğe bağlı Open-Meteo ensemble yayılımı indirilir; sıcaklık ve yağış miktarı için standart sapma gösterilir. Doğruluk yüzdesi değildir; veri gelmezse açıklayıcı hata gösterilir.
+- Gözlem günlüğü: gök cismi/meteor etiketi, konum adı ve kayıt saatiyle not veya kameradan fotoğraf yerel saklanır; kayıt silinebilir.
+- Doğum anı haritası: doğum tarihi, saati ve şehirden tarihsel saat dilimini çözerek geosentrik tropikal gezegen konumları, yükselen ve eşit evler hesaplanır. Bilgiler yalnızca cihazda saklanır ve silinebilir; bilimsel kişisel öngörü değildir.
 - Önümüzdeki 21 günün Ay takvimi ve konuma göre gezegen yönlerini gösteren kamera/pusula görünümü
 - Günlüğe kamerayla çekilmiş fotoğraf ekleme; fotoğraf cihazın uygulama klasöründe tutulur
 - Hava ve Ay bilgilerini görsel kart olarak telefonun paylaşım menüsüne gönderme
