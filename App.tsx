@@ -6,7 +6,7 @@ import * as Location from 'expo-location';
 import * as Speech from 'expo-speech';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
-import { getVoiceAudio, getVoiceProfileStatus, getObservationAudio, getCardAudio, getDailyBriefAudio } from './cloudVoice';
+import { getVoiceAudio, getVoiceProfileStatus, getObservationAudio, getCardAudio, getDailyBriefAudio, getRabbitAudio } from './cloudVoice';
 import { File, Paths } from 'expo-file-system';
 import type { CameraView } from 'expo-camera';
 import type { VoiceProfile } from './voiceConfig';
@@ -589,7 +589,7 @@ function Root(){
   </>)}
   {screen==='cards'&&panel(<CardReadings p={p} playAudio={async(deck,spread,cards)=>{if(!voiceEnabled)throw new Error('Sesli rehber ayarlarda kapalı.');const token=++voiceRequestId.current;player.pause();const uri=await getCardAudio(deck,spread,cards);if(token!==voiceRequestId.current)return;await setAudioModeAsync({playsInSilentMode:true});player.replace({uri});player.play();}}/>)}
   {screen==='cookie'&&panel(<FortuneCookie p={p} onJournal={message=>{setJournalText(message);setScreen('journal');}}/>)}
-  {screen==='rabbit'&&panel(<RabbitFortune p={p} onJournal={message=>{setJournalText(message);setScreen('journal');}}/>)}
+  {screen==='rabbit'&&panel(<RabbitFortune p={p} onJournal={message=>{setJournalText(message);setScreen('journal');}} playAudio={async index=>{try{if(!voiceEnabled)throw new Error('Sesli rehber ayarlarda kapalı.');const token=++voiceRequestId.current;player.pause();const uri=await getRabbitAudio(index);if(token!==voiceRequestId.current)return;await setAudioModeAsync({playsInSilentMode:true});player.replace({uri});player.play();}catch(error){Alert.alert('Tavşanın sesi açılamadı',error instanceof Error?error.message:'Ses alınamadı.');}}}/>)}
   {screen==='compass'&&panel(<Compass p={p} targets={plan?.targets}/>)}
   {screen==='planner'&&panel(<ActivityPlanner p={p} place={place?.name||''} hourly={weather?.hourly} daily={weather?.daily} offsetSeconds={weather?.utc_offset_seconds??0} updated={updated}/>)}
   {screen==='observation'&&<>{panel(<>
