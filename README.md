@@ -6,6 +6,7 @@ Gündüz açık ve gece lacivert-mor atmosferde çalışan Türkçe gökyüzü u
 - Gerçek hava verisi ve 5 günlük tahmin: Open-Meteo
 - Saatlik sıcaklık, yağış olasılığı ve hava simgesi; yaklaşan yağış saati ve günlük gökyüzü özeti
 - Bu gece gökyüzü gözlemi: saatlik bulutluluk, yağış ve görüş verileriyle üç uygun saat (tahmin puanı)
+- Bana Uygun Saat: yürüyüş, gökyüzü fotoğrafı veya yıldız gözlemi için önümüzdeki 36 saatin tahmininden üç ayrı zaman önerisi; gerekçe ve yaklaşık uygunluk puanı, sistem paylaşımı ve seçilen saatten 30 dakika önce yerel hatırlatma. Tahmin ve puanlar kesin güvenlik garantisi değildir.
 - Önümüzdeki 21 günün Ay takvimi ve konuma göre gezegen yönlerini gösteren kamera/pusula görünümü
 - Günlüğe kamerayla çekilmiş fotoğraf ekleme; fotoğraf cihazın uygulama klasöründe tutulur
 - Hava ve Ay bilgilerini görsel kart olarak telefonun paylaşım menüsüne gönderme
