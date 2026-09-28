@@ -1,8 +1,8 @@
-﻿export type Activity='walk'|'photo'|'stars';
+export type Activity='walk'|'photo'|'stars';
 export const ACTIVITIES:Record<Activity,{title:string;icon:string;description:string}>={
- walk:{title:'Y├╝r├╝y├╝┼ş',icon:'­şÜÂ',description:'Ya─ş─▒┼ş, s─▒cakl─▒k ve r├╝zg├ór'},
- photo:{title:'G├Âky├╝z├╝ foto─şraf─▒',icon:'­şôÀ',description:'G├╝n ─▒┼ş─▒─ş─▒, bulutlar ve ya─ş─▒┼ş'},
- stars:{title:'Y─▒ld─▒z g├Âzlemi',icon:'Ô£Ğ',description:'Karanl─▒k, bulut ve g├Âr├╝┼ş mesafesi'}
+ walk:{title:'Yürüyüş',icon:'🚶',description:'Yağış, sıcaklık ve rüzgâr'},
+ photo:{title:'Gökyüzü fotoğrafı',icon:'📷',description:'Gün ışığı, bulutlar ve yağış'},
+ stars:{title:'Yıldız gözlemi',icon:'✦',description:'Karanlık, bulut ve görüş mesafesi'}
 };
 type Input={time:string[];precipitation_probability:number[];temperature_2m:number[];cloud_cover:number[];visibility:number[];wind_speed_10m:number[];weather_code:number[]};
 type Sun={time:string[];sunrise:string[];sunset:string[]};
@@ -26,14 +26,14 @@ export function bestActivityWindows(hourly:Input,daily:Sun,offsetSeconds:number,
   let score:number,reason:string;
   if(activity==='walk'){
    score=clamp(100-rain*.65-Math.abs(temp-21)*2-Math.max(0,wind-15)*.65);
-   reason=rain>=40?'Ya─ş─▒┼ş ihtimali y├╝ksek; d─▒┼şar─▒ ├ğ─▒kmadan ├Ânce tahmini yenile.':temp<8?'Hava serin; katmanl─▒ giyin.':temp>30?'Hava s─▒cak; su ve g├Âlge planla.':'Ya─ş─▒┼ş ve s─▒cakl─▒k y├╝r├╝y├╝┼ş i├ğin daha elveri┼şli.';
+   reason=rain>=40?'Yağış ihtimali yüksek; dışarı çıkmadan önce tahmini yenile.':temp<8?'Hava serin; katmanlı giyin.':temp>30?'Hava sıcak; su ve gölge planla.':'Yağış ve sıcaklık yürüyüş için daha elverişli.';
   }else if(activity==='photo'){
    const golden=Math.min(Math.abs(instant-start),Math.abs(instant-end));
    score=clamp(95-rain*.55-Math.abs(cloud-35)*.26-Math.max(0,wind-20)*.4+(golden<=90*60_000?9:0));
-   reason=golden<=90*60_000?'G├╝n do─şumu veya bat─▒m─▒na yak─▒n ─▒┼ş─▒k.':cloud>70?'Bulutlar g├Âky├╝z├╝n├╝ kapatabilir.':'G├╝n ─▒┼ş─▒─ş─▒ ve bulutlar foto─şraf i├ğin dengeli.';
+   reason=golden<=90*60_000?'Gün doğumu veya batımına yakın ışık.':cloud>70?'Bulutlar gökyüzünü kapatabilir.':'Gün ışığı ve bulutlar fotoğraf için dengeli.';
   }else{
    score=clamp(100-rain*.32-cloud*.55-Math.max(0,12000-visibility)/450-Math.max(0,wind-20)*.25);
-   reason=cloud>55?'Bulutluluk g├Âky├╝z├╝n├╝ kapatabilir.':visibility<6000?'G├Âr├╝┼ş mesafesi d├╝┼ş├╝k.':'Daha a├ğ─▒k ve karanl─▒k bir g├Âzlem saati.';
+   reason=cloud>55?'Bulutluluk gökyüzünü kapatabilir.':visibility<6000?'Görüş mesafesi düşük.':'Daha açık ve karanlık bir gözlem saati.';
   }
   if(score>=25)windows.push({instant,score,rain,temp,cloud,wind,visibility,reason});
  }
