@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, AppState, BackHandler, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, AppState, BackHandler, Image, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import * as Location from 'expo-location';
@@ -98,6 +98,8 @@ function Root(){
  const [journalText,setJournalText]=useState('');
  const [journalPhoto,setJournalPhoto]=useState<string|null>(null);
  const [photoCameraOpen,setPhotoCameraOpen]=useState(false);
+ const [photoCameraReady,setPhotoCameraReady]=useState(false);
+ const [photoCapturing,setPhotoCapturing]=useState(false);
  const [CameraComponent,setCameraComponent]=useState<typeof CameraView|null>(null);
  const [LensComponent,setLensComponent]=useState<typeof import('./SkyLens').SkyLens|null>(null);
  const [lensError,setLensError]=useState('');
@@ -210,17 +212,21 @@ function Root(){
    const current=await camera.Camera.getCameraPermissionsAsync();
    const permission=current.granted?current:await camera.Camera.requestCameraPermissionsAsync();
    if(!permission.granted){Alert.alert('Kamera izni gerekli','Fotoğraf eklemek için ayarlardan kamera izni ver.');return;}
-   setCameraComponent(()=>camera.CameraView);setPhotoCameraOpen(true);
+   setPhotoCameraReady(false);setCameraComponent(()=>camera.CameraView);setPhotoCameraOpen(true);
   }catch{Alert.alert('Kamera açılamadı','Bu Expo Go sürümünde kamera modülü bulunamadı. SDK 58 uyumlu Expo Go veya geliştirme derlemesini kullan.');}
  }
  async function takeJournalPhoto(){
+  if(!photoCameraReady||photoCapturing)return;
+  setPhotoCapturing(true);
   try{
-   const photo=await cameraRef.current?.takePictureAsync({quality:.8});
+   const photo=await cameraRef.current?.takePictureAsync({quality:.55});
    if(!photo?.uri)return;
+   setPhotoCameraOpen(false);
    const saved=new File(Paths.document,'gokyuzu-gunluk-'+Date.now()+'.jpg');
    new File(photo.uri).copy(saved);
-   setJournalPhoto(saved.uri);setPhotoCameraOpen(false);
+   setJournalPhoto(saved.uri);
   }catch(e){Alert.alert('Fotoğraf kaydedilemedi',e instanceof Error?e.message:'Kamera hatası.');}
+  finally{setPhotoCapturing(false);}
  }
  async function shareDayCard(){
   if(!shareCardRef.current||!weather){Alert.alert('Hava verisi bekleniyor','Kart için hava durumunu yükle.');return;}
@@ -541,7 +547,7 @@ function Root(){
       {txt('Bugün nasıl hissediyorsun? Notlar yalnızca bu cihazda saklanır.',12,false,true)}
       <View style={styles.moodRow}>{['Sakin','Neşeli','Düşünceli','Yorgun'].map(m=><Pressable accessibilityRole="button" key={m} onPress={()=>setMood(m)} style={[styles.moodChip,{backgroundColor:mood===m?p.accent:p.input}]}><Text style={{color:mood===m?p.button:p.text,fontSize:12}}>{m}</Text></Pressable>)}</View>
       <TextInput multiline maxLength={500} value={journalText} onChangeText={setJournalText} placeholder="Gökyüzüne bakınca bugün neler düşündün?" placeholderTextColor={p.sub} style={[styles.journalInput,{backgroundColor:p.input,color:p.text,borderColor:p.line}]}/>
-      {photoCameraOpen&&CameraComponent?<View style={{height:350,marginTop:12,overflow:'hidden',borderRadius:18}}><CameraComponent ref={cameraRef} style={{flex:1}} facing="back"/>{button('📷 Fotoğrafı çek',()=>void takeJournalPhoto())}{button('Vazgeç',()=>setPhotoCameraOpen(false),true)}</View>:button('📷 Gökyüzünün fotoğrafını ekle',()=>void openJournalCamera(),true)}
+      {button('📷 Gökyüzünün fotoğrafını ekle',()=>void openJournalCamera(),true)}
       {journalPhoto&&<View><Image source={{uri:journalPhoto}} style={{width:'100%',height:180,borderRadius:16,marginTop:12}}/>{button('Fotoğrafı kaldır',()=>{try{new File(journalPhoto).delete();}catch{}setJournalPhoto(null);},true)}</View>}
       {button('✦ Günlüğüme kaydet',saveEntry)}
     </>)}
@@ -568,7 +574,17 @@ function Root(){
   </>,{marginTop:15})}</>}
   {busy&&<ActivityIndicator color={p.accent} style={{marginTop:16}}/>}
   <Text style={{color:p.sub,textAlign:'center',fontSize:11,marginTop:25}}>Hava verileri: Open-Meteo · Astroloji notları eğlence amaçlıdır.</Text>
- </ScrollView></SafeAreaView>;
+ </ScrollView>
+ <Modal visible={photoCameraOpen} animationType="slide" onRequestClose={()=>setPhotoCameraOpen(false)}>
+  <View style={{flex:1,backgroundColor:'#100F2B'}}>
+   {CameraComponent&&<CameraComponent ref={cameraRef} style={{flex:1}} facing="back" onCameraReady={()=>setPhotoCameraReady(true)} onMountError={event=>{setPhotoCameraReady(false);Alert.alert('Kamera açılamadı',event.message);}}/>}
+   <View style={{padding:20,paddingBottom:35,backgroundColor:'#100F2B'}}>
+    <Pressable accessibilityRole="button" disabled={!photoCameraReady||photoCapturing} onPress={()=>void takeJournalPhoto()} style={{backgroundColor:'#F5D8A7',borderRadius:16,padding:17,opacity:photoCameraReady&&!photoCapturing?1:.5}}><Text style={{textAlign:'center',color:'#281C44',fontWeight:'800'}}>{photoCapturing?'Fotoğraf kaydediliyor…':photoCameraReady?'📷 Fotoğrafı çek':'Kamera hazırlanıyor…'}</Text></Pressable>
+    <Pressable accessibilityRole="button" onPress={()=>setPhotoCameraOpen(false)} style={{padding:16}}><Text style={{textAlign:'center',color:'#FFF2E8'}}>Vazgeç</Text></Pressable>
+   </View>
+  </View>
+ </Modal>
+ </SafeAreaView>;
 }
 export default function App(){return <SafeAreaProvider><Root/></SafeAreaProvider>;}
 const styles=StyleSheet.create({
