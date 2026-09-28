@@ -29,6 +29,7 @@ function validSnapshot(s) {
     typeof s.sunrise==='string'&&/^\d{4}-\d\d-\d\dT([01]\d|2[0-3]):[0-5]\d/.test(s.sunrise)&&
     typeof s.sunset==='string'&&/^\d{4}-\d\d-\d\dT([01]\d|2[0-3]):[0-5]\d/.test(s.sunset);
 }
+function freshSnapshot(s,now){return validSnapshot(s)&&typeof s.observedAt==='number'&&Number.isFinite(s.observedAt)&&s.observedAt<=now.getTime()+60_000&&now.getTime()-s.observedAt<=15*60_000;}
 function snapshotWeather(s){return {current:{temperature_2m:s.temp,apparent_temperature:s.feels,wind_speed_10m:s.wind,weather_code:s.code},daily:{time:[s.sunrise.slice(0,10)],temperature_2m_min:[s.min],temperature_2m_max:[s.max],precipitation_probability_max:[s.rain],sunrise:[s.sunrise],sunset:[s.sunset]}};}
 function sunTime(s) { return typeof s === 'string' ? s.split('T')[1]?.slice(0,5) || 'bilinmiyor' : 'bilinmiyor'; }
 function signAt(body, date) {
@@ -73,7 +74,11 @@ async function narration(profile, input, now = new Date(), fetchImpl = fetch) {
     forecast_days:'1',timezone:'auto',
   });
   let w;
-  try {
+  if(freshSnapshot(input.weatherSnapshot,now)){
+    w=snapshotWeather(input.weatherSnapshot);
+    cacheKey+=':device:'+round(input.weatherSnapshot.temp)+':'+round(input.weatherSnapshot.rain)+':'+round(input.weatherSnapshot.code);
+  }
+  else try {
     const response=await fetchImpl('https://api.open-meteo.com/v1/forecast?'+params,{signal:AbortSignal.timeout(12000)});
     if(!response.ok) {
       console.error(JSON.stringify({event:'weather_upstream_rejected',providerStatus:response.status}));
