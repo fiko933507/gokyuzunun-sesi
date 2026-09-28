@@ -9,10 +9,11 @@ const katina=[
 ] as const;
 const suits=[['Kupa','♥','Duygular'],['Maça','♠','Düşünceler'],['Karo','♦','Günlük yaşam'],['Sinek','♣','Eylem']] as const;
 const ranks=['As','2','3','4','5','6','7','8','9','10','Vale','Kız','Papaz'] as const;
+const rankThemes=['ilk adım','iki seçenek arasındaki denge','paylaşım ve işbirliği','sağlam bir temel','değişim karşısındaki tutum','karşılıklı destek','beklentileri gözden geçirme','sabırla emek verme','bir döngünün olgunlaşması','tamamlanma ve yeni alan açma','merakla haberleşme','özenli bir bakış','sorumluluk alma'] as const;
 export const DECKS:Record<DeckId,{title:string;description:string;cards:Card[]}>= {
  tarot:{title:'Tarot',description:'Büyük Arkana · 22 sembolik kart',cards:majors.map(([name,symbol,meaning],i)=>({id:'t'+i,name,symbol,meaning}))},
  katina:{title:'Katina tarzı',description:'İlişkiler üzerine özgün sembolik kartlar',cards:katina.map(([name,symbol,meaning],i)=>({id:'k'+i,name,symbol,meaning}))},
- iskambil:{title:'İskambil',description:'52 kart · dört renk',cards:suits.flatMap(([name,symbol,meaning],s)=>ranks.map((rank,i)=>({id:'i'+s+'-'+i,name:rank+' '+name,symbol,meaning:meaning+' üzerine düşünme'})))}
+ iskambil:{title:'İskambil',description:'52 kart · dört renk',cards:suits.flatMap(([name,symbol,meaning],s)=>ranks.map((rank,i)=>({id:'i'+s+'-'+i,name:rank+' '+name,symbol,meaning:meaning+' alanında '+rankThemes[i]+' üzerine düşünme'})))}
 };
 export const deckIds:DeckId[]=['tarot','katina','iskambil'];
 export function shuffledCards(deck:DeckId):Card[]{
