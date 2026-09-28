@@ -25,5 +25,6 @@ test('AI request uses fixed instructions and sends no conversation history',asyn
 test('provider quota and credential failures expose only safe status codes',async()=>{
  const input={deck:'tarot',spread:'daily',cards:['t0']};
  await assert.rejects(generateCardReading(input,{key:'test',fetchImpl:async()=>({ok:false,status:429,json:async()=>({error:{code:'insufficient_quota'}})})}),{status:503,code:'provider_quota'});
+ await assert.rejects(generateCardReading(input,{key:'test',fetchImpl:async()=>({ok:false,status:429,json:async()=>({error:{type:'insufficient_quota'}})})}),{status:503,code:'provider_quota',providerCode:'insufficient_quota'});
  await assert.rejects(generateCardReading(input,{key:'test',fetchImpl:async()=>({ok:false,status:401,json:async()=>({error:{message:'secret'}})})}),{status:503,code:'provider_auth'});
 });
