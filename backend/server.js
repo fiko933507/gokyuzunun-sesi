@@ -134,6 +134,35 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'GET' && path === '/health') {
     return json(res, 200, { ok: true, service: 'gokyuzunun-sesi-api', voiceConfigured: !!KEY, cardReadingConfigured: !!process.env.OPENAI_API_KEY, profilesConfigured: { weather: !!VOICES.weather.id, astrology: !!VOICES.astrology.id } });
   }
+  if(req.method==='POST'&&path==='/api/rabbit-reading'){
+    if(!rateLimit(req))return json(res,429,{error:'Too many requests',code:'rate_limited'});
+    let body='';
+    try{
+      for await(const chunk of req){body+=chunk;if(body.length>700)return json(res,413,{error:'Request too large'});}
+      const value=require('./rabbitReading').validate(JSON.parse(body));
+      const today=new Date().toISOString().slice(0,10);
+      if(today!==cardDay){cardDay=today;cardRequestsToday=0;}
+      if(cardRequestsToday>=30)return json(res,429,{error:'Daily reading budget reached',code:'daily_limit'});
+      if(!process.env.OPENAI_API_KEY)return json(res,503,{error:'AI service not configured',code:'not_configured'});
+      cardRequestsToday++;
+      const reading=await require('./rabbitReading').read(value);
+      return json(res,200,{reading});
+    }catch(error){const status=[400,413,429,503].includes(error.status)?error.status:503;return json(res,status,{error:'Rabbit reading unavailable',code:status===400?'invalid_request':error.code||'provider_unavailable'});}
+  }
+  if(req.method==='POST'&&path==='/api/rabbit-audio'){
+    if(!rateLimit(req))return json(res,429,{error:'Too many requests'});
+    let body='';
+    try{
+      for await(const chunk of req){body+=chunk;if(body.length>100)return json(res,413,{error:'Request too large'});}
+      const {index}=JSON.parse(body);
+      const fortunes=require('./rabbitReading').FORTUNES;
+      if(!Number.isInteger(index)||index<0||index>=fortunes.length)return json(res,400,{error:'Invalid note'});
+      const note=fortunes[index];
+      const data=await speech('astrology',`Tavşan Falcısı. ${note[0]}. ${note[1]} Bu bir motivasyon notudur; geleceğe dair kesin bir öngörü değildir.`, 'rabbit:v1:'+index);
+      res.writeHead(200,{'Content-Type':'audio/mpeg','Content-Length':data.length,'Cache-Control':'private, max-age=3600','X-Content-Type-Options':'nosniff'});
+      return res.end(data);
+    }catch(error){return json(res,[400,402,409,413,429,503].includes(error.status)?error.status:502,{error:'Rabbit audio unavailable'});}
+  }
   if(req.method==='POST' && path==='/api/card-reading'){
     if(!rateLimit(req))return json(res,429,{error:'Too many requests',code:'rate_limited'});
     let body='';
