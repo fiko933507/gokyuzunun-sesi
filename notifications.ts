@@ -5,8 +5,11 @@ import Constants from 'expo-constants';
 const KEY='sky.local.notification.id';
 const WEATHER_KEY='sky.weather.notification.ids';
 export type AlertHours={time:string[];precipitation_probability:number[];temperature_2m:number[]};
+// SDK 58 Expo Go may ship without ExpoTopicSubscriptionModule. Never evaluate
+// expo-notifications there: catching its import still triggers a red Metro overlay.
+const inExpoGo=()=>Constants.appOwnership==='expo'||Constants.expoGoConfig!=null;
 async function notificationModule():Promise<typeof NotificationTypes>{
- if(Constants.appOwnership==='expo')throw new Error('Bu Expo Go sürümünde yerel bildirim modülü bulunmuyor. Bildirimler için uygulamanın geliştirme derlemesini kullan.');
+ if(inExpoGo())throw new Error('Expo Go bildirimleri desteklemiyor. Hatırlatmaları kullanmak için uygulamanın geliştirme derlemesini aç.');
  try{return await import('expo-notifications');}
  catch{throw new Error('Bu Expo Go sürümü bildirim modülünü desteklemiyor. Expo Go’yu güncelle veya uygulamanın geliştirme derlemesini kullan.');}
 }
@@ -30,7 +33,7 @@ export async function stopDailyNotification(){
  if(id){await Notifications.cancelScheduledNotificationAsync(id);await AsyncStorage.removeItem(KEY);}
 }
 export async function dailyNotificationEnabled(){
- if(Constants.appOwnership==='expo')return false;
+ if(inExpoGo())return false;
  const id=await AsyncStorage.getItem(KEY);
  if(!id)return false;
  const Notifications=await notificationModule();
@@ -70,7 +73,7 @@ export async function stopWeatherAlerts(){
 
 /** Notify only after a successful GPS and forecast refresh; never request permission during automatic refreshes. */
 export async function notifyGpsUpdated(place:string,requestPermission=false){
- if(Constants.appOwnership==='expo')return false;
+ if(inExpoGo())return false;
  const Notifications=await notificationModule();
  const permission=requestPermission?await Notifications.requestPermissionsAsync():await Notifications.getPermissionsAsync();
  if(!permission.granted)return false;
