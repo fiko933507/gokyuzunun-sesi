@@ -1,7 +1,6 @@
 import React, {useEffect, useRef, useState} from 'react';
 import {AccessibilityInfo, Alert, Animated, Easing, Pressable, Share, Text, TextInput, View} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Speech from 'expo-speech';
 
 const fortunes=[
  {title:'Cesaret',message:'Küçük bir adım bile kendine verdiğin sözü güçlendirir.',question:'Bugün hangi adımı deneyebilirsin?'},
@@ -17,7 +16,7 @@ const icons=['🐇','🌟','🐰','🌙','🐇','✨','🐰','☀️'];
 type Palette={text:string;sub:string;accent:string;input:string;line:string;button:string};
 const SIZE=280;
 
-export function RabbitFortune({p,onJournal}:{p:Palette;onJournal:(text:string)=>void}){
+export function RabbitFortune({p,onJournal,playAudio}:{p:Palette;onJournal:(text:string)=>void;playAudio:(index:number)=>Promise<void>}){
  const rotation=useRef(new Animated.Value(0)).current;
  const rabbit=useRef(new Animated.Value(0)).current;
  const paper=useRef(new Animated.Value(0)).current;
@@ -30,17 +29,20 @@ export function RabbitFortune({p,onJournal}:{p:Palette;onJournal:(text:string)=>
  const [chosen,setChosen]=useState<number|null>(null);
  const [reducedMotion,setReducedMotion]=useState(false);
  const [question,setQuestion]=useState('');
+ const [reading,setReading]=useState('');
+ const [readingError,setReadingError]=useState('');
+ const [readingBusy,setReadingBusy]=useState(false);
  const [character,setCharacter]=useState('Neşeli Tavşan');
  const [daily,setDaily]=useState(false);
  const [openedDates,setOpenedDates]=useState<string[]>([]);
  const date=new Date().toLocaleDateString('sv-SE');
- useEffect(()=>{alive.current=true;void AccessibilityInfo.isReduceMotionEnabled().then(value=>{if(alive.current)setReducedMotion(value);}).catch(()=>{});void AsyncStorage.multiGet(['sky.rabbit.daily','sky.rabbit.opened','sky.rabbit.character']).then(([d,o,c])=>{if(d[1]===date)setDaily(true);if(o[1]){try{setOpenedDates(JSON.parse(o[1]));}catch{}}if(c[1])setCharacter(c[1]!);}).catch(()=>{});return()=>{alive.current=false;rotation.stopAnimation();rabbit.stopAnimation();paper.stopAnimation();hops.stopAnimation();Speech.stop();};},[rotation,rabbit,paper,hops,date]);
+ useEffect(()=>{alive.current=true;void AccessibilityInfo.isReduceMotionEnabled().then(value=>{if(alive.current)setReducedMotion(value);}).catch(()=>{});void AsyncStorage.multiGet(['sky.rabbit.daily','sky.rabbit.opened','sky.rabbit.character']).then(([d,o,c])=>{if(d[1]===date)setDaily(true);if(o[1]){try{setOpenedDates(JSON.parse(o[1]));}catch{}}if(c[1])setCharacter(c[1]!);}).catch(()=>{});return()=>{alive.current=false;rotation.stopAnimation();rabbit.stopAnimation();paper.stopAnimation();hops.stopAnimation();};},[rotation,rabbit,paper,hops,date]);
  const spin=()=>{
   if(busy.current)return;
-  busy.current=true;setSpinning(true);setChosen(null);setPhase('spin');
+  busy.current=true;setSpinning(true);setChosen(null);setReading('');setReadingError('');setPhase('spin');
   rabbit.setValue(0);paper.setValue(0);hops.setValue(0);
   const choice=Math.floor(Math.random()*fortunes.length);
-  const next=turn.current+4+(fortunes.length-choice)/fortunes.length;
+  const next=Math.ceil(turn.current)+4+((fortunes.length-choice)%fortunes.length)/fortunes.length;
   Animated.timing(rotation,{toValue:next,duration:reducedMotion?250:2800,easing:Easing.out(Easing.cubic),useNativeDriver:true}).start(({finished})=>{
    if(!finished||!alive.current){busy.current=false;return;}
    turn.current=next;setPhase('draw');
@@ -57,8 +59,18 @@ export function RabbitFortune({p,onJournal}:{p:Palette;onJournal:(text:string)=>
   });
  };
  const selected=chosen===null?null:fortunes[chosen];
- const speak=()=>{if(!selected)return;Speech.stop();Speech.speak(`${selected.title}. ${selected.message} ${selected.question}`,{language:'tr-TR',rate:.88,pitch:1.05});};
- const personalized=question.trim()?`${character}, “${question.trim()}” soruna bugün şöyle fısıldıyor: ${selected?.message||'Cevabını bulmak için kendine biraz zaman tanı.'}`:'';
+ const ask=async()=>{
+  if(chosen===null||readingBusy||question.trim().length<4){Alert.alert('Sorunu yaz','Yorum için en az dört karakterlik bir soru gir.');return;}
+  setReadingBusy(true);setReadingError('');setReading('');
+  try{
+   const response=await fetch('https://gokyuzunun-sesi.onrender.com/api/rabbit-reading',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({index:chosen,character,question:question.trim().slice(0,240)})});
+   const payload=await response.json() as {reading?:string;code?:string};
+   if(!response.ok)throw new Error(payload.code==='provider_quota'||payload.code==='provider_unavailable'?'Yapay zekâ servisi şu anda yanıt veremiyor veya bakiyesi tükenmiş. Soruya özel yorum oluşturulmadı.':payload.code==='daily_limit'?'Günlük soru sınırına ulaşıldı.':response.status===404?'Yorum servisi henüz güncellenmedi.':'Soru yorumlanamadı. Biraz sonra tekrar dene.');
+   if(!payload.reading)throw new Error('Boş yanıt alındı.');
+   setReading(payload.reading);
+  }catch(error){setReadingError(error instanceof Error?error.message:'Soru yorumlanamadı.');}
+  finally{setReadingBusy(false);}
+ };
  const spinDegrees=rotation.interpolate({inputRange:[0,1],outputRange:['0deg','360deg']});
  return <View>
   <Text style={{color:p.text,fontWeight:'800',fontSize:25}}>🐇 Tavşan Falcısı</Text>
@@ -77,19 +89,21 @@ export function RabbitFortune({p,onJournal}:{p:Palette;onJournal:(text:string)=>
    </Animated.View>
   </View>
   <View style={{height:125,alignItems:'center',justifyContent:'center',flexDirection:'row',overflow:'hidden'}}>
-   <Animated.Text style={{fontSize:62,transform:[{translateX:rabbit.interpolate({inputRange:[0,1],outputRange:[-48,6]})},{translateY:hops.interpolate({inputRange:[0,1],outputRange:[0,-20]})}]}}>🐇</Animated.Text>
-   <Animated.View style={{marginLeft:8,alignItems:'center',transform:[{translateX:paper.interpolate({inputRange:[0,1],outputRange:[-24,15]})},{rotate:paper.interpolate({inputRange:[0,1],outputRange:['-12deg','0deg']})}]}}><Text style={{fontSize:48}}>{phase==='idle'||phase==='spin'?'✉️':'📜'}</Text></Animated.View>
+   <Animated.View style={{alignItems:'center',transform:[{translateX:rabbit.interpolate({inputRange:[0,1],outputRange:[-48,6]})},{translateY:hops.interpolate({inputRange:[0,1],outputRange:[0,-20]})}]}}><Text style={{fontSize:15,marginBottom:-18,zIndex:2}}>{character==='Bilge Tavşan'?'🎓':character==='Romantik Tavşan'?'🎀':'🧢'}</Text><Text style={{fontSize:62}}>🐇</Text></Animated.View>
+   <Animated.View style={{marginLeft:8,alignItems:'center',transform:[{translateY:paper.interpolate({inputRange:[0,1],outputRange:[-115,20]})},{rotate:paper.interpolate({inputRange:[0,1],outputRange:['-18deg','0deg']})}]}}><Text style={{fontSize:48}}>{phase==='idle'?'✉️':'📜'}</Text></Animated.View>
   </View>
   {phase==='draw'&&<Text style={{color:p.sub,textAlign:'center',marginBottom:12}}>Tavşan kâğıdını çekiyor…</Text>}
   <Pressable accessibilityRole="button" accessibilityLabel="Tavşanlı şans çarkını çevir" disabled={spinning} onPress={spin} style={{backgroundColor:p.accent,borderRadius:15,padding:16,alignItems:'center',opacity:spinning?.6:1}}><Text style={{fontSize:16,fontWeight:'800',color:p.button}}>{spinning?'Çark dönüyor…':'✦ Çarkı çevir'}</Text></Pressable>
   <Text style={{color:p.sub,fontSize:13,fontWeight:'700',marginTop:18}}>Tavşana bir soru bırak</Text>
   <TextInput value={question} onChangeText={setQuestion} placeholder="Bugün neyi bilmek istersin?" placeholderTextColor={p.sub} multiline style={{minHeight:48,maxHeight:90,borderWidth:1,borderColor:p.line,borderRadius:13,padding:12,color:p.text,backgroundColor:p.input,marginTop:7}} />
+  {selected&&question.trim().length>0&&<Pressable accessibilityRole="button" disabled={readingBusy} onPress={()=>void ask()} style={{padding:13,backgroundColor:p.accent,borderRadius:12,marginTop:10}}><Text style={{color:p.button,fontWeight:'700',textAlign:'center'}}>{readingBusy?'Soru yorumlanıyor…':'✦ Sorumu yorumla'}</Text></Pressable>}
   {selected&&<View accessibilityLiveRegion="polite" style={{borderWidth:1,borderColor:p.line,backgroundColor:p.input,borderRadius:16,padding:19,marginTop:18}}>
    <Text style={{color:p.accent,fontWeight:'800',fontSize:16}}>📜 {selected.title}</Text>
    <Text style={{color:p.text,fontWeight:'700',fontSize:19,lineHeight:29,marginTop:8}}>{selected.message}</Text>
    <Text style={{color:p.sub,fontSize:15,marginTop:12,lineHeight:22}}>{selected.question}</Text>
-   {personalized&&<Text style={{color:p.text,fontSize:15,lineHeight:22,marginTop:12}}>{personalized}</Text>}
-   <Pressable accessibilityRole="button" onPress={speak} style={{padding:12,marginTop:4}}><Text style={{color:p.accent,fontWeight:'700'}}>🔊 Tavşanı dinle</Text></Pressable>
+   {!!reading&&<Text style={{color:p.text,fontSize:15,lineHeight:23,marginTop:12}}>{reading}</Text>}
+   {!!readingError&&<Text style={{color:p.sub,fontSize:13,marginTop:12}}>{readingError}</Text>}
+   <Pressable accessibilityRole="button" onPress={()=>void playAudio(chosen!)} style={{padding:12,marginTop:4}}><Text style={{color:p.accent,fontWeight:'700'}}>🔊 Astroloji sesiyle notu dinle</Text></Pressable>
    <Pressable accessibilityRole="button" onPress={()=>void Share.share({message:`🐇 Tavşan Falcısı: ${selected.title}\n${selected.message}\n${selected.question}\n(Eğlence ve motivasyon amaçlıdır.)`})} style={{padding:12,marginTop:10}}><Text style={{color:p.accent,fontWeight:'700'}}>Paylaş ↗</Text></Pressable>
    <Pressable accessibilityRole="button" onPress={()=>onJournal(`${selected.message}\n${selected.question}`)} style={{padding:12}}><Text style={{color:p.accent,fontWeight:'700'}}>Günlükte düzenle ↗</Text></Pressable>
   </View>}
