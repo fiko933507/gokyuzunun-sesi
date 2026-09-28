@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, AppState, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, AppState, BackHandler, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import * as Location from 'expo-location';
@@ -19,6 +19,7 @@ import { MoonDisc, SkyAtmosphere, SunDisc, ZodiacWheel } from './CelestialVisual
 import { dailyNotificationEnabled, setDailyNotification, stopDailyNotification, scheduleWeatherAlerts, stopWeatherAlerts } from './notifications';
 
 type Place = { name: string; latitude: number; longitude: number };
+type Screen='weather'|'sky'|'zodiac'|'journal'|'settings'|'moon'|'lens'|'cards'|'observation'|'events'|'compass';
 type JournalEntry={id:string;date:string;place:string;mood:string;note:string;sky:string;photoUri?:string};
 type Weather = {
  utc_offset_seconds?: number;
@@ -39,7 +40,25 @@ const time=(s?:string)=>s?.split('T')[1]?.slice(0,5)||'—';
 const num=(n?:number)=>Number.isFinite(n)?String(Math.round(n!)):'—';
 function currentIsNight(w:Weather){return w.current.is_day!==1;}
 function Root(){
- const [screen,setScreen]=useState<'weather'|'sky'|'zodiac'|'journal'|'settings'|'moon'|'lens'|'cards'|'observation'|'events'|'compass'>('weather');
+ const [screen,setActiveScreen]=useState<Screen>('weather');
+ const screenHistory=useRef<Screen[]>([]);
+ function setScreen(next:Screen){
+  if(next===screen)return;
+  if(next==='weather')screenHistory.current=[];
+  else screenHistory.current.push(screen);
+  setActiveScreen(next);
+ }
+ function goBack(){
+  const previous=screenHistory.current.pop()??'weather';
+  setActiveScreen(previous);
+ }
+ useEffect(()=>{
+  const handler=BackHandler.addEventListener('hardwareBackPress',()=>{
+   if(screen==='weather')return false;
+   goBack();return true;
+  });
+  return()=>handler.remove();
+ },[screen]);
  const [weather,setWeather]=useState<Weather|null>(null);
  const [air,setAir]=useState<AirForecast|null>(null);
  const [airError,setAirError]=useState(false);
@@ -298,7 +317,7 @@ function Root(){
  return <SafeAreaView style={{flex:1,backgroundColor:p.bg}} edges={['top','bottom']}>
   <SkyAtmosphere night={dark}/>
   <StatusBar style={dark?'light':'dark'}/>
-  <ScrollView keyboardShouldPersistTaps="handled"
+  <ScrollView key={screen} keyboardShouldPersistTaps="handled"
     refreshControl={<RefreshControl refreshing={busy} onRefresh={()=>locationMode==='gps'?void locate():place?void load(place,'city'):void locate()} tintColor={p.accent}/>}
     contentContainerStyle={styles.page}>
   <View style={styles.header}>
@@ -312,6 +331,7 @@ function Root(){
     <Pressable accessibilityRole="button" accessibilityLabel="Bildirim ayarları" onPress={()=>setScreen('settings')} style={{padding:6}}><Text style={{fontSize:26,color:p.accent}}>♧</Text></Pressable>
     <Pressable accessibilityRole="button" accessibilityLabel="Ayarları aç" onPress={()=>setScreen('settings')} style={[styles.headerAction,{backgroundColor:p.panel,borderColor:p.line}]}><Text style={{color:p.accent,fontSize:22}}>⚙</Text></Pressable>
   </View>
+  {screen!=='weather'&&<Pressable accessibilityRole="button" accessibilityLabel="Önceki ekrana dön" onPress={goBack} style={{alignSelf:'flex-start',paddingVertical:10,paddingHorizontal:15,borderRadius:16,borderWidth:1,borderColor:p.line,backgroundColor:p.panel,marginTop:9}}><Text style={{color:p.text,fontSize:14,fontWeight:'700'}}>‹ Geri</Text></Pressable>}
   <View style={[styles.nav,{borderColor:p.line,backgroundColor:p.panel}]}>
     {([['weather','☀  Bugün'],['sky','♄  Gezegenler'],['zodiac','♑  Burcum']] as const).map(([id,title])=>
       <Pressable accessibilityRole="button" key={id} onPress={()=>setScreen(id)} style={[styles.navItem,{backgroundColor:screen===id?p.accent:'transparent'}]}>
@@ -435,15 +455,13 @@ function Root(){
   {screen==='moon'&&panel(<>
     {txt('☾ Ay Takvimi',23,true)}{txt('Önümüzdeki 21 gün · astronomik Ay evreleri',12,false,true)}
     {moonDays.map(day=><View key={day.key} style={[styles.forecast,{borderColor:p.line}]}><Text style={{color:p.accent,fontSize:24}}>☾</Text><View style={{flex:1,marginLeft:10}}>{txt(day.date,15,true)}{txt(day.name,12,false,true)}</View>{txt('%'+day.lit,15,true)}</View>)}
-    {button('‹ Gezegenlere dön',()=>setScreen('sky'),true)}
   </>)}
   {screen==='lens'&&panel(<>
     {txt('✦ Gökyüzüne Tut',22,true)}
     {place&&LensComponent?<LensComponent latitude={place.latitude} longitude={place.longitude} place={place.name} dark={dark}/>:txt(lensError||'Konum ve kamera görünümü hazırlanıyor.',14)}
-    {button('‹ Gezegenlere dön',()=>setScreen('sky'),true)}
   </>)}
   {screen==='cards'&&panel(<CardReadings p={p}/>)}
-  {screen==='compass'&&panel(<><Compass p={p} targets={plan?.targets}/>{button('‹ Gözlem planına dön',()=>setScreen('observation'),true)}</>)}
+  {screen==='compass'&&panel(<Compass p={p} targets={plan?.targets}/>)}
   {screen==='observation'&&<>{panel(<>
     {txt('✦ Bu Gece Nereye Bakayım?',22,true)}
     {!plan?txt('Konum ve gece hava tahmini bekleniyor. Tahmin gelince gözlem planı burada görünecek.',13,false,true):<>
@@ -467,7 +485,6 @@ function Root(){
     {txt('✧ Gök Olayları Takvimi',22,true)}
     {txt('Ay evreleri hesaplanır; meteor geceleri 2026–2027 American Meteor Society takvimindeki beklenen zirvelerdir. Görünürlük bulunduğun yere ve havaya bağlıdır.',12,false,true)}
     {events.slice(0,18).map(event=><View key={event.id} style={[styles.forecast,{borderColor:p.line}]}><Text style={{fontSize:26,color:p.accent}}>{event.title.includes('Ay')?'☾':'✦'}</Text><View style={{flex:1}}>{txt(event.title,15,true)}{txt(new Date(event.instant).toLocaleString('tr-TR',{day:'numeric',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'}),12,false,true)}{txt(event.detail+' Kaynak: '+event.source,11,false,true)}</View></View>)}
-    {button('‹ Gezegenlere dön',()=>setScreen('sky'),true)}
   </>)}
   {screen==='zodiac'&&<>
     {panel(<>
