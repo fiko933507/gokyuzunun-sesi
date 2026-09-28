@@ -64,3 +64,11 @@ export async function getCardAudio(deck:string,spread:'daily'|'three',cards:stri
  const bytes=await response.bytes();if(bytes.length<128||bytes.length>5_000_000)throw new Error('Ses boyutu geçersiz.');
  const file=new File(Paths.cache,'gokyuzu-kart-'+Date.now()+'.mp3');file.create();await file.write(bytes);return file.uri;
 }
+
+export async function getDailyBriefAudio(input:{latitude:number;longitude:number;place:string;weatherSnapshot:WeatherSnapshot;sign:string;duration:'brief'|'full';pace:'calm'|'normal'}):Promise<string>{
+ const response=await expoFetch(API+'/api/daily-brief-audio',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(input)});
+ if(!response.ok)throw new Error(response.status===409?'Kadın sesi doğrulanamadı.':response.status===402?'Ses sağlayıcısının kredisi tükendi.':response.status===429?'Günlük ses üretim sınırına ulaşıldı.':'Günlük özet sesi alınamadı (HTTP '+response.status+').');
+ if(!(response.headers.get('content-type')||'').includes('audio/mpeg'))throw new Error('Beklenmeyen ses yanıtı.');
+ const bytes=await response.bytes();if(bytes.length<128||bytes.length>5_000_000)throw new Error('Ses boyutu geçersiz.');
+ const file=new File(Paths.cache,'gokyuzu-ozet-'+Date.now()+'.mp3');file.create();await file.write(bytes);return file.uri;
+}
