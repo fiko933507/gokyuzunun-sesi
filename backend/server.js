@@ -170,6 +170,21 @@ const server = http.createServer(async (req, res) => {
     }
     return json(res, 200, { profiles });
   }
+  if(req.method==='POST'&&path==='/api/daily-brief-audio'){
+    if(!rateLimit(req))return json(res,429,{error:'Too many requests'});
+    let body='';
+    try{
+      for await(const chunk of req){body+=chunk;if(body.length>750)return json(res,413,{error:'Request too large'});}
+      const input=JSON.parse(body);
+      if(!input||Object.keys(input).some(key=>!['latitude','longitude','place','weatherSnapshot','sign','duration','pace'].includes(key)))return json(res,400,{error:'Invalid request'});
+      const weather=await narration('weather',input);
+      const astrology=await narration('astrology',input);
+      const text=weather.text+' Şimdi gökyüzünün sembolik bölümüne geçelim. '+astrology.text;
+      const data=await speech('astrology',text,'brief:'+weather.cacheKey+':'+astrology.cacheKey,input.pace);
+      res.writeHead(200,{'Content-Type':'audio/mpeg','Content-Length':data.length,'Cache-Control':'private, max-age=3600','X-Content-Type-Options':'nosniff'});
+      return res.end(data);
+    }catch(err){return json(res,[400,402,409,429,503].includes(err.status)?err.status:502,{error:err.status===409?'Female voice unavailable':err.status===429?'Daily voice limit reached':'Daily audio unavailable'});}
+  }
   if(req.method==='POST'&&path==='/api/card-reading-audio'){
     if(!rateLimit(req))return json(res,429,{error:'Too many requests'});
     let body='';
