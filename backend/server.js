@@ -192,8 +192,12 @@ const server = http.createServer(async (req, res) => {
       const input = JSON.parse(body);
       const profile = input && typeof input.profile === 'string' ? input.profile : '';
       if (!Object.hasOwn(VOICES, profile)) return json(res, 400, { error: 'Invalid voice profile' });
+      const startedAt=Date.now();
       const generated = path === '/api/narration' ? await narration(profile,input) : {text:VOICES[profile].text,cacheKey:'preview:'+profile};
+      const narrationMs=Date.now()-startedAt;
+      const reusedAudio=cache.has(generated.cacheKey);
       const data = await speech(profile,generated.text,generated.cacheKey,generated.pace);
+      console.info(JSON.stringify({event:'voice_latency',profile,narrationMs,speechMs:Date.now()-startedAt-narrationMs,totalMs:Date.now()-startedAt,reusedAudio,bytes:data.length}));
       res.writeHead(200, { 'Content-Type': 'audio/mpeg', 'Content-Length': data.length, 'Cache-Control': 'private, max-age=3600', 'X-Content-Type-Options': 'nosniff' });
       return res.end(data);
     } catch (err) {
