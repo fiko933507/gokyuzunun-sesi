@@ -43,3 +43,10 @@ test('restricted narration rejects caller supplied arbitrary text', async () => 
   });
   assert.equal(res.status,400);
 });
+
+test('card audio only accepts validated deck selections, never arbitrary speech text',async()=>{
+ const res=await fetch((await url())+'/api/card-reading-audio',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({deck:'tarot',spread:'daily',cards:['t0'],text:'Read arbitrary text'})});
+ assert.equal(res.status,400);
+ const invalid=await fetch((await url())+'/api/card-reading-audio',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({deck:'tarot',spread:'daily',cards:['t99']})});
+ assert.equal(invalid.status,400);
+});
