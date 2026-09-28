@@ -78,3 +78,36 @@ export async function notifyGpsUpdated(place:string,requestPermission=false){
  });
  return true;
 }
+
+type ActivityReminder={id:string;place:string;activity:string;instant:number};
+const ACTIVITY_KEY='sky.activity.reminder';
+export async function getActivityReminder():Promise<ActivityReminder|null>{
+ try{
+  const raw=await AsyncStorage.getItem(ACTIVITY_KEY);
+  if(!raw)return null;
+  const saved=JSON.parse(raw) as ActivityReminder;
+  if(!saved||typeof saved.id!=='string'||!Number.isFinite(saved.instant)||saved.instant<Date.now())return null;
+  return saved;
+ }catch{return null;}
+}
+export async function cancelActivityReminder(){
+ const old=await getActivityReminder();
+ if(old){const Notifications=await notificationModule();await Notifications.cancelScheduledNotificationAsync(old.id).catch(()=>{});}
+ await AsyncStorage.removeItem(ACTIVITY_KEY);
+}
+export async function setActivityReminder(place:string,activity:string,instant:number){
+ if(!Number.isFinite(instant)||instant<Date.now()+35*60_000||instant>Date.now()+36*3600_000)throw new Error('Hatırlatma için en az 35 dakika sonrasını seç.');
+ const Notifications=await notificationModule();
+ const permission=await Notifications.requestPermissionsAsync();
+ if(!permission.granted)throw new Error('Bildirim izni verilmedi. Telefon ayarlarından açabilirsin.');
+ if(Platform.OS==='android')await Notifications.setNotificationChannelAsync('sky-plan',{name:'Gökyüzü planım',importance:Notifications.AndroidImportance.DEFAULT});
+ const id=await Notifications.scheduleNotificationAsync({
+  content:{title:'✦ Gökyüzü planın yaklaşıyor',body:place+' için '+activity.toLocaleLowerCase('tr-TR')+' planın yarım saat sonra. Hava tahminini yeniden kontrol et.',sound:'default'},
+  trigger:{type:Notifications.SchedulableTriggerInputTypes.DATE,date:new Date(instant-30*60_000),channelId:Platform.OS==='android'?'sky-plan':undefined}
+ });
+ const previous=await getActivityReminder();
+ try{await AsyncStorage.setItem(ACTIVITY_KEY,JSON.stringify({id,place,activity,instant}));}
+ catch(e){await Notifications.cancelScheduledNotificationAsync(id).catch(()=>{});throw e;}
+ if(previous)await Notifications.cancelScheduledNotificationAsync(previous.id).catch(()=>{});
+ return {id,place,activity,instant};
+}
