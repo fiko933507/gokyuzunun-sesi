@@ -14,19 +14,20 @@ import { skyAt, symbolicReading } from './astronomy';
 import { skyViewingWindows, moonCalendar } from './skyDiscovery';
 import {observationPlan,skyEvents,type AirForecast} from './observationPlan';
 import { CardReadings } from './CardReadings';
+import { ActivityPlanner } from './ActivityPlanner';
 import { Compass } from './Compass';
 import { MoonDisc, SkyAtmosphere, SunDisc, ZodiacWheel } from './CelestialVisuals';
 import { dailyNotificationEnabled, setDailyNotification, stopDailyNotification, scheduleWeatherAlerts, stopWeatherAlerts, notifyGpsUpdated } from './notifications';
 
 type Place = { name: string; latitude: number; longitude: number };
 type CityResult={name:string;country?:string;admin1?:string;latitude:number;longitude:number};
-type Screen='weather'|'sky'|'zodiac'|'journal'|'settings'|'moon'|'lens'|'cards'|'observation'|'events'|'compass';
+type Screen='weather'|'sky'|'zodiac'|'journal'|'settings'|'moon'|'lens'|'cards'|'observation'|'events'|'compass'|'planner';
 type JournalEntry={id:string;date:string;place:string;mood:string;note:string;sky:string;photoUri?:string};
 type Weather = {
  utc_offset_seconds?: number;
  current: { temperature_2m: number; apparent_temperature: number; relative_humidity_2m: number; wind_speed_10m: number; weather_code: number; is_day: number };
  daily: { time: string[]; weather_code: number[]; temperature_2m_max: number[]; temperature_2m_min: number[]; precipitation_probability_max: number[]; sunrise: string[]; sunset: string[]; uv_index_max: number[] };
- hourly:{time:string[];precipitation_probability:number[];temperature_2m:number[];weather_code:number[];cloud_cover:number[];visibility:number[]};
+ hourly:{time:string[];precipitation_probability:number[];temperature_2m:number[];weather_code:number[];cloud_cover:number[];visibility:number[];wind_speed_10m:number[]};
 };
 const SIGNS = ['Koç','Boğa','İkizler','Yengeç','Aslan','Başak','Terazi','Akrep','Yay','Oğlak','Kova','Balık'];
 const ICONS = ['♈','♉','♊','♋','♌','♍','♎','♏','♐','♑','♒','♓'];
@@ -140,7 +141,7 @@ function Root(){
   setBusy(true);setError('');
   const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),15000);
   try{
-   const args=new URLSearchParams({latitude:String(p.latitude),longitude:String(p.longitude),current:'temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code,is_day',hourly:'temperature_2m,precipitation_probability,weather_code,cloud_cover,visibility',daily:'weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset,uv_index_max',timezone:'auto',forecast_days:'5'});
+   const args=new URLSearchParams({latitude:String(p.latitude),longitude:String(p.longitude),current:'temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code,is_day',hourly:'temperature_2m,precipitation_probability,weather_code,cloud_cover,visibility,wind_speed_10m',daily:'weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset,uv_index_max',timezone:'auto',forecast_days:'5'});
    const response=await fetch('https://api.open-meteo.com/v1/forecast?'+args,{signal:controller.signal});
    if(!response.ok)throw new Error('Hava servisine bağlanılamadı.');
    const data=await response.json() as Weather;
@@ -395,7 +396,7 @@ function Root(){
    {panel(<>
      <View style={styles.sectionHeading}><Text style={[{color:p.text,fontSize:19},serif]}>✦ Keşfet</Text><Text style={{color:p.sub,fontSize:11}}>Gökyüzü ve kartlar</Text></View>
      <View style={{flexDirection:'row',flexWrap:'wrap',gap:8,marginTop:12}}>
-      {([['observation','☾','Gözlem planı'],['events','✧','Gök olayları'],['cards','✦','Kart yorumları'],['compass','⊕','Pusula']] as const).map(([destination,icon,title])=><Pressable key={title} accessibilityRole="button" accessibilityLabel={title+' ekranını aç'} onPress={()=>setScreen(destination)} style={{width:'48%',flexGrow:1,flexDirection:'row',alignItems:'center',gap:8,borderWidth:1,borderColor:p.line,backgroundColor:p.input,borderRadius:14,paddingVertical:11,paddingHorizontal:9}}><Text style={{color:p.accent,fontSize:23}}>{icon}</Text><Text numberOfLines={1} style={{color:p.text,fontSize:12,fontWeight:'700',flexShrink:1}}>{title}</Text></Pressable>)}
+      {([['planner','✧','Bana uygun saat'],['observation','☾','Gözlem planı'],['events','✧','Gök olayları'],['cards','✦','Kart yorumları'],['compass','⊕','Pusula']] as const).map(([destination,icon,title])=><Pressable key={title} accessibilityRole="button" accessibilityLabel={title+' ekranını aç'} onPress={()=>setScreen(destination)} style={{width:'48%',flexGrow:1,flexDirection:'row',alignItems:'center',gap:8,borderWidth:1,borderColor:p.line,backgroundColor:p.input,borderRadius:14,paddingVertical:11,paddingHorizontal:9}}><Text style={{color:p.accent,fontSize:23}}>{icon}</Text><Text numberOfLines={1} style={{color:p.text,fontSize:12,fontWeight:'700',flexShrink:1}}>{title}</Text></Pressable>)}
      </View>
    </>,{marginBottom:12})}
    <View style={[styles.hero,{backgroundColor:p.hero}]}>
@@ -514,6 +515,7 @@ function Root(){
   </>)}
   {screen==='cards'&&panel(<CardReadings p={p} playAudio={async(deck,spread,cards)=>{if(!voiceEnabled)throw new Error('Sesli rehber ayarlarda kapalı.');const token=++voiceRequestId.current;player.pause();const uri=await getCardAudio(deck,spread,cards);if(token!==voiceRequestId.current)return;await setAudioModeAsync({playsInSilentMode:true});player.replace({uri});player.play();}}/>)}
   {screen==='compass'&&panel(<Compass p={p} targets={plan?.targets}/>)}
+  {screen==='planner'&&panel(<ActivityPlanner p={p} place={place?.name||''} hourly={weather?.hourly} daily={weather?.daily} offsetSeconds={weather?.utc_offset_seconds??0} updated={updated}/>)}
   {screen==='observation'&&<>{panel(<>
     {txt('✦ Bu Gece Nereye Bakayım?',22,true)}
     {!plan?txt('Konum ve gece hava tahmini bekleniyor. Tahmin gelince gözlem planı burada görünecek.',13,false,true):<>
