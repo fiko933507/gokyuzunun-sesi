@@ -111,3 +111,48 @@ export async function setActivityReminder(place:string,activity:string,instant:n
  if(previous)await Notifications.cancelScheduledNotificationAsync(previous.id).catch(()=>{});
  return {id,place,activity,instant};
 }
+
+type EventReminder={id:string;eventId:string;title:string;instant:number;noticeAt:number};
+const EVENT_KEY='sky.event.reminders';
+export async function getEventReminders():Promise<EventReminder[]>{
+ const raw=await AsyncStorage.getItem(EVENT_KEY);
+ let stored:EventReminder[]=[];
+ try{const parsed=JSON.parse(raw||'[]');if(Array.isArray(parsed))stored=parsed.filter(entry=>typeof entry.id==='string'&&typeof entry.eventId==='string'&&Number.isFinite(entry.instant)&&entry.instant>Date.now());}catch{}
+ try{
+  const Notifications=await notificationModule();
+  const scheduled=new Set((await Notifications.getAllScheduledNotificationsAsync()).map(item=>item.identifier));
+  const active=stored.filter(item=>scheduled.has(item.id));
+  if(active.length!==stored.length)await AsyncStorage.setItem(EVENT_KEY,JSON.stringify(active));
+  return active;
+ }catch{return stored;}
+}
+export async function followSkyEvent(eventId:string,title:string,instant:number){
+ if(!eventId||eventId.length>100||!title||title.length>80||!Number.isFinite(instant)||instant<Date.now()+20*60_000)throw new Error('Bu etkinlik için hatırlatma zamanı geçti.');
+ const stored=await getEventReminders();
+ if(stored.some(item=>item.eventId===eventId))return stored;
+ if(stored.length>=16)throw new Error('En fazla 16 etkinlik takip edilebilir. Eski hatırlatıcılardan birini kaldır.');
+ const Notifications=await notificationModule();
+ const permission=await Notifications.requestPermissionsAsync();
+ if(!permission.granted)throw new Error('Bildirim izni verilmedi. Telefon ayarlarından açabilirsin.');
+ if(Platform.OS==='android')await Notifications.setNotificationChannelAsync('sky-events',{name:'Gök olayları',importance:Notifications.AndroidImportance.DEFAULT});
+ const ahead=instant-Date.now();
+ const noticeAt=instant-(ahead>48*3600_000?24*3600_000:ahead>2*3600_000?3600_000:15*60_000);
+ const id=await Notifications.scheduleNotificationAsync({
+  content:{title:'✦ '+title+' yaklaşıyor',body:'Gökyüzü takvimindeki etkinlik için hava ve görünürlük koşullarını uygulamadan yeniden kontrol et.',sound:'default'},
+  trigger:{type:Notifications.SchedulableTriggerInputTypes.DATE,date:new Date(noticeAt),channelId:Platform.OS==='android'?'sky-events':undefined}
+ });
+ const next=[...stored,{id,eventId,title,instant,noticeAt}];
+ try{await AsyncStorage.setItem(EVENT_KEY,JSON.stringify(next));}
+ catch(e){await Notifications.cancelScheduledNotificationAsync(id).catch(()=>{});throw e;}
+ return next;
+}
+export async function unfollowSkyEvent(eventId:string){
+ const stored=await getEventReminders();
+ const match=stored.find(item=>item.eventId===eventId);
+ if(!match)return stored;
+ const Notifications=await notificationModule();
+ await Notifications.cancelScheduledNotificationAsync(match.id);
+ const next=stored.filter(item=>item.eventId!==eventId);
+ await AsyncStorage.setItem(EVENT_KEY,JSON.stringify(next));
+ return next;
+}
