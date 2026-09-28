@@ -27,6 +27,7 @@ Gündüz açık ve gece lacivert-mor atmosferde çalışan Türkçe gökyüzü u
 - Ayarlardan favori şehir kaydı ve tek dokunuşla geçiş (en çok 12 şehir)
 - Gökyüzü günlüğü: ruh hâli, not, konum ve Ay evresi yalnızca cihazda saklanır; kayıtlar silinebilir
 - Şans Kurabiyesi: her gün açılan rastgele sembolik mesaj ve düşünme sorusu cihazda saklanır; önceki mesajlar görüntülenir, paylaşılır veya günlüğe taslak olarak aktarılır. Gelecek tahmini değildir.
+- Tavşan Falcısı: dönen tavşanlı çark ve kâğıt çekme animasyonu ile motive edici mesajlar gösterir; eğlence amaçlıdır.
 - Kullanıcının seçtiği yağış ve soğuk eşiklerinde yaklaşan 36 saat için yerel uyarılar
 - Konumu kullan / şehir ara: son bilinen konum, izin ve zaman aşımı yönetimi
 - Güneş doğuş-batış zamanlarıyla otomatik tema
