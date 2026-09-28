@@ -17,6 +17,7 @@ import { CardReadings } from './CardReadings';
 import { ActivityPlanner } from './ActivityPlanner';
 import { SkyEvents } from './SkyEvents';
 import { BirthChart } from './BirthChart';
+import { FortuneCookie } from './FortuneCookie';
 import {rainWindows,upcomingSignTransitions,localForecastTime} from './skyInsights';
 import {snapshotForecast,forecastChanges,fetchEnsembleSpread,type EnsembleSpread,type ForecastSnapshot} from './forecastIntelligence';
 import { Compass } from './Compass';
@@ -25,7 +26,7 @@ import { dailyNotificationEnabled, setDailyNotification, stopDailyNotification, 
 
 type Place = { name: string; latitude: number; longitude: number };
 type CityResult={name:string;country?:string;admin1?:string;latitude:number;longitude:number};
-type Screen='weather'|'sky'|'zodiac'|'journal'|'settings'|'moon'|'lens'|'cards'|'observation'|'events'|'compass'|'planner'|'birth';
+type Screen='weather'|'sky'|'zodiac'|'journal'|'settings'|'moon'|'lens'|'cards'|'observation'|'events'|'compass'|'planner'|'birth'|'cookie';
 type JournalEntry={id:string;date:string;place:string;mood:string;note:string;sky:string;photoUri?:string;target?:string;observedAt?:number;latitude?:number;longitude?:number};
 type Weather = {
  utc_offset_seconds?: number;
@@ -452,7 +453,7 @@ function Root(){
    {panel(<>
      <View style={styles.sectionHeading}><Text style={[{color:p.text,fontSize:19},serif]}>✦ Keşfet</Text><Text style={{color:p.sub,fontSize:11}}>Gökyüzü ve kartlar</Text></View>
      <View style={{flexDirection:'row',flexWrap:'wrap',gap:8,marginTop:12}}>
-      {([['planner','✧','Bana uygun saat'],['observation','☾','Gözlem planı'],['events','✧','Gök olayları'],['cards','✦','Kart yorumları'],['compass','⊕','Pusula']] as const).map(([destination,icon,title])=><Pressable key={title} accessibilityRole="button" accessibilityLabel={title+' ekranını aç'} onPress={()=>setScreen(destination)} style={{width:'48%',flexGrow:1,flexDirection:'row',alignItems:'center',gap:8,borderWidth:1,borderColor:p.line,backgroundColor:p.input,borderRadius:14,paddingVertical:11,paddingHorizontal:9}}><Text style={{color:p.accent,fontSize:23}}>{icon}</Text><Text numberOfLines={1} style={{color:p.text,fontSize:12,fontWeight:'700',flexShrink:1}}>{title}</Text></Pressable>)}
+      {([['planner','✧','Bana uygun saat'],['observation','☾','Gözlem planı'],['events','✧','Gök olayları'],['cards','✦','Kart yorumları'],['compass','⊕','Pusula'],['cookie','🥠','Şans kurabiyesi']] as const).map(([destination,icon,title])=><Pressable key={title} accessibilityRole="button" accessibilityLabel={title+' ekranını aç'} onPress={()=>setScreen(destination)} style={{width:'48%',flexGrow:1,flexDirection:'row',alignItems:'center',gap:8,borderWidth:1,borderColor:p.line,backgroundColor:p.input,borderRadius:14,paddingVertical:11,paddingHorizontal:9}}><Text style={{color:p.accent,fontSize:23}}>{icon}</Text><Text numberOfLines={1} style={{color:p.text,fontSize:12,fontWeight:'700',flexShrink:1}}>{title}</Text></Pressable>)}
      </View>
    </>,{marginBottom:12})}
    <View style={[styles.hero,{backgroundColor:p.hero}]}>
@@ -586,6 +587,7 @@ function Root(){
     {place&&LensComponent?<LensComponent latitude={place.latitude} longitude={place.longitude} place={place.name} dark={dark}/>:txt(lensError||'Konum ve kamera görünümü hazırlanıyor.',14)}
   </>)}
   {screen==='cards'&&panel(<CardReadings p={p} playAudio={async(deck,spread,cards)=>{if(!voiceEnabled)throw new Error('Sesli rehber ayarlarda kapalı.');const token=++voiceRequestId.current;player.pause();const uri=await getCardAudio(deck,spread,cards);if(token!==voiceRequestId.current)return;await setAudioModeAsync({playsInSilentMode:true});player.replace({uri});player.play();}}/>)}
+  {screen==='cookie'&&panel(<FortuneCookie p={p} onJournal={message=>{setJournalText(message);setScreen('journal');}}/>)}
   {screen==='compass'&&panel(<Compass p={p} targets={plan?.targets}/>)}
   {screen==='planner'&&panel(<ActivityPlanner p={p} place={place?.name||''} hourly={weather?.hourly} daily={weather?.daily} offsetSeconds={weather?.utc_offset_seconds??0} updated={updated}/>)}
   {screen==='observation'&&<>{panel(<>
