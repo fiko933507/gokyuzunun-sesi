@@ -152,7 +152,7 @@ const server = http.createServer(async (req, res) => {
     }catch(error){
       const status=[400,413,429,503].includes(error.status)?error.status:503;
       const code=['provider_auth','provider_quota','provider_busy','provider_unavailable'].includes(error.code)?error.code:status===400?'invalid_reading':'provider_unavailable';
-      if(status!==400)console.warn(JSON.stringify({event:'card_reading_failed',code,providerStatus:error.providerStatus||null}));
+      if(status!==400)console.warn(JSON.stringify({event:'card_reading_failed',code,providerStatus:error.providerStatus||null,providerCode:error.providerCode||'unknown'}));
       return json(res,status,{error:status===400?'Invalid reading':'AI reading unavailable',code});
     }
   }
