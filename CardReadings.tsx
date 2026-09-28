@@ -46,7 +46,7 @@ export function CardReadings({p}:{p:Palette}){
    const record:HistoryEntry={id:Date.now()+'-'+Math.random(),date:new Date().toLocaleString('tr-TR'),deck,spread,cards:selected.map(card=>card.id),reading:result};
    setHistory(previous=>{const next=[record,...previous].slice(0,30);void AsyncStorage.setItem(HISTORY_KEY,JSON.stringify(next));return next;});
   }
- catch(e){setError(e instanceof Error?e.message:'Yorum alınamadı.');}
+  catch(e){setError((e instanceof Error?e.message:'Yorum alınamadı.')+' Kart anlamlarından hazırlanan yerel yorum aşağıda gösteriliyor.');setReading(localCardReading(selected,spread));setReadingSource('local');}
   finally{setLoading(false);}
  }
  const line={borderColor:p.line},cardBackground={backgroundColor:p.panel};
@@ -63,7 +63,6 @@ export function CardReadings({p}:{p:Palette}){
   {selected.length===(spread==='daily'?1:3)&&<Pressable accessibilityRole="button" disabled={loading} onPress={()=>void interpret()} style={{backgroundColor:p.accent,padding:16,borderRadius:17,alignItems:'center'}}><Text style={{color:p.button,fontWeight:'800'}}>{loading?'Yorum hazırlanıyor…':'✦ Yapay zekâ ile yorumla'}</Text></Pressable>}
   {loading&&<ActivityIndicator color={p.accent}/>}
   {!!error&&<Text style={{color:p.text,fontSize:13}}>{error}</Text>}
-  {!!error&&selected.length===(spread==='daily'?1:3)&&<Pressable accessibilityRole="button" onPress={()=>{setReading(localCardReading(selected,spread));setReadingSource('local');setError('');}} style={{padding:13,borderRadius:14,backgroundColor:p.input,borderWidth:1,...line}}><Text style={{color:p.accent,fontWeight:'700',textAlign:'center'}}>Sunucusuz sembolik yorum göster</Text></Pressable>}
   {!!reading&&<View style={{padding:16,borderRadius:18,borderWidth:1,...line,...cardBackground}}><Text style={{color:p.accent,fontSize:20,fontFamily:'serif',marginBottom:9}}>{readingSource==='ai'?'Gökyüzünden bir yorum':'Yerel sembolik yorum'}</Text><Text style={{color:p.text,fontSize:15,lineHeight:24}}>{reading}</Text>{readingSource==='local'&&<Text style={{color:p.sub,fontSize:11,marginTop:10}}>Bu metin kartların kayıtlı anlamlarından telefonda oluşturuldu; yapay zekâ yanıtı değildir.</Text>}</View>}
   {spread==='three'&&selected.length>0&&<Pressable accessibilityRole="button" onPress={restart} style={{padding:12,alignItems:'center'}}><Text style={{color:p.accent,fontWeight:'700'}}>Kartları yeniden karıştır</Text></Pressable>}
   <Pressable accessibilityRole="button" onPress={()=>setHistoryOpen(!historyOpen)} style={{paddingVertical:12,borderTopWidth:1,...line}}><Text style={{color:p.accent,fontSize:17,fontWeight:'700'}}>☾ Kart geçmişim ({history.length}) {historyOpen?'⌄':'›'}</Text></Pressable>
