@@ -50,3 +50,8 @@ test('card audio only accepts validated deck selections, never arbitrary speech 
  const invalid=await fetch((await url())+'/api/card-reading-audio',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({deck:'tarot',spread:'daily',cards:['t99']})});
  assert.equal(invalid.status,400);
 });
+
+test('daily brief audio rejects arbitrary user supplied narration',async()=>{
+ const res=await fetch((await url())+'/api/daily-brief-audio',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({latitude:41,longitude:29,sign:'Koç',text:'Read this'})});
+ assert.equal(res.status,400);
+});
