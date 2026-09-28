@@ -8,7 +8,7 @@ export async function getCardReading(deck:DeckId,spread:'daily'|'three',cards:Ca
    const detail=await response.json().catch(()=>({})) as {code?:string};
    if(detail.code==='not_configured')throw new Error('Sunucuda yapay zekâ anahtarı tanımlı değil.');
    if(detail.code==='provider_auth')throw new Error('Yapay zekâ sağlayıcısı anahtarı kabul etmedi; Render anahtarını kontrol et.');
-   if(detail.code==='provider_quota')throw new Error('Yapay zekâ hesabının kullanım kotası veya bakiyesi dolmuş.');
+   if(detail.code==='provider_quota')throw new Error('Yapay zekâ sağlayıcısının API bakiyesi tükendi. Yeni bakiye eklenene kadar yapay zekâ yorumları kullanılamıyor.');
    if(detail.code==='daily_limit')throw new Error('Günlük yorum sınırına ulaşıldı. Yarın tekrar dene.');
    if(response.status===429)throw new Error('Çok fazla istek gönderildi. Biraz sonra tekrar dene.');
    throw new Error('Yapay zekâ sunucusu yanıt vermedi ('+response.status+'). Biraz sonra tekrar dene.');
