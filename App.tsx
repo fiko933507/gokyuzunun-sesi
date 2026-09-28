@@ -1,3 +1,6 @@
+Warning: truncated output (original token count: 16273)
+Total output lines: 593
+
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, AppState, BackHandler, Image, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
@@ -6,7 +9,7 @@ import * as Location from 'expo-location';
 import * as Speech from 'expo-speech';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
-import { getVoiceAudio, getVoiceProfileStatus, getObservationAudio } from './cloudVoice';
+import { getVoiceAudio, getVoiceProfileStatus, getObservationAudio, getCardAudio } from './cloudVoice';
 import { File, Paths } from 'expo-file-system';
 import type { CameraView } from 'expo-camera';
 import type { VoiceProfile } from './voiceConfig';
@@ -288,162 +291,7 @@ function Root(){
   return 'Merhaba. '+(place?.name||'Bulunduğun yer')+' için gökyüzünün sesine hoş geldin. Şu anda hava '+label(current.weather_code).toLocaleLowerCase('tr-TR')+'. Sıcaklık '+num(current.temperature_2m)+', hissedilen '+num(current.apparent_temperature)+' derece. Günün en düşük sıcaklığı '+num(daily.temperature_2m_min[0])+', en yükseği '+num(daily.temperature_2m_max[0])+' derece. Yağış olasılığı yüzde '+num(rain)+'. Güneş '+time(rise)+' saatinde doğuyor, '+time(set)+' saatinde batıyor. '+advice;
  },[current,daily,place,rise,set]);
  async function playVoice(profile:VoiceProfile){
-  if(!voiceEnabled){Alert.alert('Ses kapalı','Ayarlar bölümünden sesli rehberi aç.');return;}
-  if(activeVoice===profile || voiceLoading===profile){
-   voiceRequestId.current++;player.pause();setActiveVoice(null);setVoiceLoading(null);
-   return;
-  }
-  if(profile==='weather' && (!place || !weather)){Alert.alert('Hava durumu bekleniyor','Önce konum ya da şehir seçip hava durumunu yükle.');return;}
-  const token=++voiceRequestId.current;
-  player.pause();await Speech.stop();setSpeaking(false);setActiveVoice(null);setVoiceLoading(profile);
-  try{
-   const request=profile==='weather'
-     ? {profile:'weather' as const,duration:voiceDuration,pace:voicePace,latitude:place!.latitude,longitude:place!.longitude,place:place!.name,
-        weatherSnapshot:{temp:current!.temperature_2m,feels:current!.apparent_temperature,wind:current!.wind_speed_10m,code:current!.weather_code,observedAt:lastFetchRef.current,
-          min:daily!.temperature_2m_min[0],max:daily!.temperature_2m_max[0],rain:daily!.precipitation_probability_max[0],sunrise:rise!,sunset:set!}}
-     : {profile:'astrology' as const,sign,duration:voiceDuration,pace:voicePace};
-   const uri=await getVoiceAudio(request);
-   if(token!==voiceRequestId.current)return;
-   await setAudioModeAsync({playsInSilentMode:true});
-   player.replace({uri});
-   player.play();
-   setActiveVoice(profile);
-  }catch(e){
-   if(token!==voiceRequestId.current)return;
-   const reason=e instanceof Error?e.message:'Ses alınamadı.';
-   Alert.alert('Ses çalınamadı',reason+' Cihazın erkek sesine otomatik geçilmeyecek.');
-  }finally{
-   if(token===voiceRequestId.current)setVoiceLoading(null);
-  }
- }
- async function playObservation(){
-  if(!voiceEnabled){Alert.alert('Ses kapalı','Ayarlar bölümünden sesli rehberi aç.');return;}
-  if(activeVoice==='observation'||voiceLoading==='observation'){voiceRequestId.current++;player.pause();setActiveVoice(null);setVoiceLoading(null);return;}
-  if(!plan||!place||!weather){Alert.alert('Gözlem planı bulunamadı','Önce konumun hava tahminini yükle.');return;}
-  const token=++voiceRequestId.current;player.pause();setActiveVoice(null);setVoiceLoading('observation');
-  try{
-   const uri=await getObservationAudio({place:place.name,latitude:place.latitude,longitude:place.longitude,instant:plan.instant,offsetSeconds:weather.utc_offset_seconds??0,score:plan.score,cloud:Math.round(plan.cloud),rain:Math.round(plan.rain),targets:plan.targets.slice(0,3).map(x=>({name:x.name,azimuth:x.azimuth,altitude:x.altitude}))});
-   if(token!==voiceRequestId.current)return;
-   await setAudioModeAsync({playsInSilentMode:true});player.replace({uri});player.play();setActiveVoice('observation');
-  }catch(e){if(token===voiceRequestId.current)Alert.alert('Rehber sesi açılamadı',e instanceof Error?e.message:'Ses servisi kullanılamıyor.');}
-  finally{if(token===voiceRequestId.current)setVoiceLoading(null);}
- }
- async function shareObservationCalendar(){
-  if(!plan||!place)return;
-  try{
-   const Sharing=await import('expo-sharing');
-   if(!await Sharing.isAvailableAsync())throw new Error('Paylaşım bu cihazda kullanılamıyor.');
-   const stamp=(ms:number)=>new Date(ms).toISOString().replace(/[-:]/g,'').replace(/\.\d{3}/,'');
-   const safePlace=place.name.replace(/[\\;,\n\r]/g,' ').slice(0,40);
-   const ics=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Gokyuzunun Sesi//Gozlem Plani//TR','BEGIN:VEVENT',
-    'UID:gokyuzu-'+plan.instant+'-'+Math.round(place.latitude*1000)+'@gokyuzunun-sesi',
-    'DTSTAMP:'+stamp(Date.now()),'DTSTART:'+stamp(plan.instant),'DTEND:'+stamp(plan.instant+3600000),
-    'SUMMARY:Gece gokyuzu gozlemi','DESCRIPTION:'+safePlace+' icin tahmini gozlem plani. Hava durumunu yeniden kontrol et.',
-    'END:VEVENT','END:VCALENDAR',''].join('\r\n');
-   const file=new File(Paths.cache,'gokyuzu-gozlem-'+Date.now()+'.ics');file.create();await file.write(ics);
-   await Sharing.shareAsync(file.uri,{mimeType:'text/calendar',dialogTitle:'Gözlem saatini takvime aktar'});
-  }catch(e){Alert.alert('Takvim dosyası paylaşılamadı',e instanceof Error?e.message:'Paylaşım hatası.');}
- }
- useEffect(()=>{if(playback.didJustFinish){setActiveVoice(null);}},[playback.didJustFinish]);
- useEffect(()=>()=>{voiceRequestId.current++;player.pause();void Speech.stop();},[player]);
- const txt=(s:string,size=15,bold=false,muted=false)=> <Text style={{color:muted?p.sub:p.text,fontSize:size,fontWeight:bold?'800':'400',lineHeight:size+7}}>{s}</Text>;
- const panel=(content:React.ReactNode,style:object={})=><View style={[styles.panel,{backgroundColor:p.panel,borderColor:p.line},style]}>{content}</View>;
- const button=(text:string,action:()=>void,secondary=false)=><Pressable accessibilityRole="button" onPress={action} style={[styles.button,{backgroundColor:secondary?p.input:p.accent}]}><Text style={{color:secondary?p.text:p.button,fontWeight:'800'}}>{text}</Text></Pressable>;
- const fact=(icon:string,k:string,v:string)=><View style={[styles.fact,{backgroundColor:p.panel,borderColor:p.line}]}><Text style={{fontSize:25}}>{icon}</Text>{txt(k,12,false,true)}{txt(v,16,true)}</View>;
- return <SafeAreaView style={{flex:1,backgroundColor:p.bg}} edges={['top','bottom']}>
-  <SkyAtmosphere night={dark}/>
-  <StatusBar style={dark?'light':'dark'}/>
-  <ScrollView key={screen} keyboardShouldPersistTaps="handled"
-    refreshControl={<RefreshControl refreshing={busy} onRefresh={()=>locationMode==='gps'?void locate():place?void load(place,'city'):void locate()} tintColor={p.accent}/>}
-    contentContainerStyle={styles.page}>
-  <View style={styles.header}>
-    <Text style={{fontSize:43,color:p.accent,marginRight:8}}>☾</Text>
-    <View style={{flex:1,minWidth:0}}>
-      <Text style={[{color:p.text,fontSize:25},serif]}>Gökyüzünün Sesi</Text>
-      <Text style={{color:p.sub,fontSize:11,fontStyle:'italic'}}>Evren hep seninle konuşuyor…</Text>
-    </View>
-    <Pressable accessibilityRole="button" accessibilityLabel="Gökyüzü günlüğünü aç" onPress={()=>setScreen('journal')} style={{padding:6}}><Text style={{fontSize:23,color:p.accent}}>✎</Text></Pressable>
-    <Pressable accessibilityRole="button" accessibilityLabel="Kart yorumlarını aç" onPress={()=>setScreen('cards')} style={{padding:6}}><Text style={{fontSize:23,color:p.accent}}>✧</Text></Pressable>
-    <Pressable accessibilityRole="button" accessibilityLabel="Bildirim ayarları" onPress={()=>setScreen('settings')} style={{padding:6}}><Text style={{fontSize:26,color:p.accent}}>♧</Text></Pressable>
-    <Pressable accessibilityRole="button" accessibilityLabel="Ayarları aç" onPress={()=>setScreen('settings')} style={[styles.headerAction,{backgroundColor:p.panel,borderColor:p.line}]}><Text style={{color:p.accent,fontSize:22}}>⚙</Text></Pressable>
-  </View>
-  {screen!=='weather'&&<Pressable accessibilityRole="button" accessibilityLabel="Önceki ekrana dön" onPress={goBack} style={{alignSelf:'flex-start',paddingVertical:10,paddingHorizontal:15,borderRadius:16,borderWidth:1,borderColor:p.line,backgroundColor:p.panel,marginTop:9}}><Text style={{color:p.text,fontSize:14,fontWeight:'700'}}>‹ Geri</Text></Pressable>}
-  <View style={[styles.nav,{borderColor:p.line,backgroundColor:p.panel}]}>
-    {([['weather','☀  Bugün'],['sky','♄  Gezegenler'],['zodiac','♑  Burcum']] as const).map(([id,title])=>
-      <Pressable accessibilityRole="button" key={id} onPress={()=>setScreen(id)} style={[styles.navItem,{backgroundColor:screen===id?p.accent:'transparent'}]}>
-       <Text numberOfLines={1} style={[{color:screen===id?p.button:p.text,fontSize:13},serif]}>{title}</Text>
-      </Pressable>)}
-  </View>
-  {!!error&&panel(<>{txt('⚠️ '+error,14)}{button('Konumumu tekrar dene',()=>void locate(),true)}</>,{marginBottom:15})}
-  {screen==='weather'&&<>
-   {panel(<>
-     <View style={styles.sectionHeading}><Text style={[{color:p.text,fontSize:19},serif]}>✦ Keşfet</Text><Text style={{color:p.sub,fontSize:11}}>Gökyüzü ve kartlar</Text></View>
-     <View style={{flexDirection:'row',flexWrap:'wrap',gap:8,marginTop:12}}>
-      {([['observation','☾','Gözlem planı'],['events','✧','Gök olayları'],['cards','✦','Kart yorumları'],['compass','⊕','Pusula']] as const).map(([destination,icon,title])=><Pressable key={title} accessibilityRole="button" accessibilityLabel={title+' ekranını aç'} onPress={()=>setScreen(destination)} style={{width:'48%',flexGrow:1,flexDirection:'row',alignItems:'center',gap:8,borderWidth:1,borderColor:p.line,backgroundColor:p.input,borderRadius:14,paddingVertical:11,paddingHorizontal:9}}><Text style={{color:p.accent,fontSize:23}}>{icon}</Text><Text numberOfLines={1} style={{color:p.text,fontSize:12,fontWeight:'700',flexShrink:1}}>{title}</Text></Pressable>)}
-     </View>
-   </>,{marginBottom:12})}
-   <View style={[styles.hero,{backgroundColor:p.hero}]}>
-    <View style={styles.heroLeft}>
-     <Text style={[{color:p.text,fontSize:22},serif]}>{new Date(now).toLocaleDateString('tr-TR',{day:'numeric',month:'long',year:'numeric'})}</Text>
-     <Text style={[{color:p.text,fontSize:16},serif]}>{new Date(now).toLocaleDateString('tr-TR',{weekday:'long'})}</Text>
-     <Pressable accessibilityRole="button" accessibilityLabel="Konumu değiştir" onPress={()=>setScreen('settings')} style={{marginTop:12}}><Text numberOfLines={2} style={{color:p.text,fontSize:13}}>⌖  {place?.name||'Konum aranıyor'}  {current?symbol(current.weather_code,dark):''}</Text></Pressable>
-    </View>
-    <View style={styles.heroRight}>
-      <Text style={[{color:p.text,fontSize:14},serif]}>Ay Fazı</Text>
-      <Text style={[{color:p.text,fontSize:20},serif]}>{astronomy.phaseName}</Text>
-      <Text style={{color:p.sub,fontSize:13}}>%{astronomy.illuminated} aydınlık</Text>
-      <Text style={{color:p.accent,marginVertical:5}}>━━━━ ✦ ━━━━</Text>
-      <Text style={[{color:p.text,fontSize:13},serif]}>Niyetlerini büyüt, evren seninle.</Text>
-    </View>
-   </View>
-   {panel(<>
-     <View style={styles.sectionHeading}><Text style={[{color:p.text,fontSize:19},serif]}>☾ Gökyüzü Takvimi</Text><Pressable onPress={()=>setScreen('events')} accessibilityRole="button"><Text style={{color:p.sub,fontSize:11}}>Tüm olaylar  ›</Text></Pressable></View>
-     <View style={styles.planetStrip}><View pointerEvents="none" style={[styles.planetLine,{backgroundColor:p.accent,opacity:.55}]}/>{astronomy.bodies.slice(1,6).map(body=><Pressable key={body.name} accessibilityRole="button" onPress={()=>{setSelectedPlanet(body.name);setScreen('sky');}} style={styles.miniPlanet}><View style={[styles.planetOrb,{backgroundColor:p.input,borderColor:p.line}]}><Text style={{fontSize:23,color:p.accent}}>{body.icon}</Text></View><Text numberOfLines={1} style={[{color:p.text,fontSize:12},serif]}>{body.name}</Text><Text numberOfLines={1} style={{color:p.sub,fontSize:10}}>{body.sign}</Text></Pressable>)}</View>
-   </>,{marginTop:8})}
-   <View style={styles.zodiacRow}>
-     <View style={[styles.wheelPanel,{backgroundColor:p.panel,borderColor:p.line}]}><ZodiacWheel night={dark} compact active={Math.max(0,SIGNS.indexOf(sign))} onSelect={i=>setSign(SIGNS[i])}/></View>
-     <Pressable accessibilityRole="button" onPress={()=>setScreen('zodiac')} style={[styles.zodiacPanel,{backgroundColor:p.panel,borderColor:p.line}]}>
-       <Text style={{color:p.accent,fontSize:12}}>Senin Burcun</Text>
-       <Text numberOfLines={1} style={[{color:p.text,fontSize:21},serif]}>{ICONS[SIGNS.indexOf(sign)]}  {sign}</Text>
-       <Text style={{color:p.line}}>─────────</Text>
-       <Text style={{color:p.accent,fontSize:12,marginTop:3}}>Günün Yorumu</Text>
-       <Text numberOfLines={5} style={{color:p.text,fontSize:12,lineHeight:17,marginTop:4}}>{symbolicReading(sign,astronomy)}</Text>
-       <Text style={{color:p.sub,fontSize:11,marginTop:5}}>Tüm yorumu gör  ›</Text>
-     </Pressable>
-   </View>
-   <Pressable accessibilityRole="button" onPress={()=>void playVoice('astrology')} style={[styles.voiceBanner,{borderColor:p.line,backgroundColor:dark?'rgba(78,51,103,0.87)':'rgba(255,237,225,0.87)'}]}>
-     <Text style={{fontSize:28,color:p.accent}}>◖♫◗</Text>
-     <View style={{flex:1}}><Text style={[{color:p.text,fontSize:17},serif]}>Sesli yorumumu dinle</Text><Text numberOfLines={1} style={{color:p.sub,fontSize:11}}>Bugünün senin için ne söylediğini keşfet…</Text></View>
-     <View style={[styles.playIcon,{backgroundColor:p.accent}]}><Text style={{color:p.button,fontSize:22}}>{activeVoice==='astrology'?'■':voiceLoading==='astrology'?'…':'▶'}</Text></View>
-   </Pressable>
-   {voiceLoading==='astrology'&&<ActivityIndicator color={p.accent}/>}
-   <Pressable accessibilityRole="button" onPress={()=>setScreen('cards')} style={[styles.voiceBanner,{borderColor:p.line,backgroundColor:p.panel}]}><Text style={{color:p.accent,fontSize:32}}>✧</Text><View style={{flex:1}}><Text style={[{color:p.text,fontSize:17},serif]}>Kart Yorumları</Text><Text style={{color:p.sub,fontSize:12}}>Tarot · Katina tarzı · İskambil</Text></View><Text style={{color:p.accent,fontSize:20}}>›</Text></Pressable>
-   {current&&daily&&<>
-    {panel(<>
-     <Text style={[{color:p.text,fontSize:19},serif]}>✦ Günlük Gökyüzü Rotası</Text>
-     {txt((place?.name||'Bulunduğun yer')+' · '+label(current.weather_code)+' · '+num(current.temperature_2m)+'°',13)}
-     {txt(nextRain?'☂ Yağış olasılığı '+time(nextRain.date)+' civarında %'+num(nextRain.rain)+' düzeyine çıkıyor.':'Önümüzdeki saatlerde belirgin yağış görünmüyor.',12,false,true)}
-     {txt('Ay: '+astronomy.phaseName+' · '+sign+' için sembolik yorum hazır.',12,false,true)}
-     <View style={{flexDirection:'row',gap:8}}><View style={{flex:1}}>{button(voiceLoading==='weather'?'Hazırlanıyor…':activeVoice==='weather'?'■ Durdur':'▶ Hava özetini dinle',()=>void playVoice('weather'),true)}</View><View style={{flex:1}}>{button('✎ Günlüğü aç',()=>setScreen('journal'),true)}</View></View>
-    </>,{marginTop:12})}
-    <View style={styles.bottomRow}>
-     <View style={[styles.weatherTile,{backgroundColor:p.panel,borderColor:p.line}]}>
-      <Text numberOfLines={1} style={[{color:p.text,fontSize:13},serif]}>☾  Hava Durumu · {place?.name||'Konumum'}</Text>
-      <View style={{flexDirection:'row',alignItems:'center',gap:6,marginVertical:7}}><Text style={{fontSize:32}}>{symbol(current.weather_code,dark)}</Text><View><Text style={[{color:p.text,fontSize:29},serif]}>{num(current.temperature_2m)}°</Text><Text style={{color:p.sub,fontSize:11}}>{label(current.weather_code)}</Text></View></View>
-      <Pressable accessibilityRole="button" onPress={()=>void playVoice('weather')} style={[styles.adviceButton,{backgroundColor:dark?'#E8E7FC':'#735084'}]}><Text numberOfLines={1} style={{color:dark?'#24204F':'#FFFFFF',fontSize:11,fontWeight:'600'}}>{weatherAdvice}  {activeVoice==='weather'?'■':'▶'}</Text></Pressable>
-     </View>
-     <View style={[styles.weatherTile,{backgroundColor:p.panel,borderColor:p.line}]}><Text style={[{color:p.text,fontSize:13},serif]}>✦  Günün Gökyüzü</Text><Text style={{color:p.sub,fontSize:11,marginTop:10}}>Ay: {astronomy.phaseName}</Text><Text style={{color:p.sub,fontSize:11,marginTop:8}}>Yağış: %{num(rainChance)}</Text><Text style={{color:p.sub,fontSize:11,marginTop:8}}>Rüzgâr: {num(current.wind_speed_10m)} km/sa</Text><Text style={{color:p.sub,fontSize:10,marginTop:12}}>Son güncelleme {updated}</Text></View>
-    </View>
-    {panel(<>
-      <Text style={[{color:p.text,fontSize:19},serif]}>☂ Saatlik Hava ve Yağış</Text>
-      {txt(nextRain?'Yağış ihtimali '+time(nextRain.date)+' civarında %'+num(nextRain.rain)+'.':'Önümüzdeki 12 saatte yüksek yağış olasılığı görünmüyor.',12,false,true)}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{marginTop:12}} contentContainerStyle={{gap:8}}>{forecastHours.map((h,i)=><View key={h.date} style={[styles.hourTile,{backgroundColor:p.input,borderColor:p.line}]}><Text style={{color:p.text,fontWeight:'700'}}>{i===0?'Şimdi':time(h.date)}</Text><Text style={{fontSize:22,marginVertical:5}}>{symbol(h.code,dark)}</Text><Text style={{color:p.text}}>{num(h.temp)}°</Text><Text style={{color:p.sub,fontSize:11}}>☂ %{num(h.rain)}</Text></View>)}</ScrollView>
-    </>,{marginTop:14})}
-    {panel(<>{txt('Önümüzdeki günler',19,true)}{daily.time.slice(1,5).map((d,i)=><View key={d} style={[styles.forecast,{borderColor:p.line}]}><Text style={{fontSize:23}}>{symbol(daily.weather_code[i+1],dark)}</Text><View style={{flex:1}}>{txt(new Date(d+'T12:00:00').toLocaleDateString('tr-TR',{weekday:'long',day:'numeric',month:'long'}),13,true)}{txt(label(daily.weather_code[i+1])+' · Yağış %'+num(daily.precipitation_probability_max[i+1]),11,false,true)}</View>{txt(num(daily.temperature_2m_min[i+1])+'° / '+num(daily.temperature_2m_max[i+1])+'°',12,true)}</View>)}</>,{marginTop:15})}
-   </>}
-   {panel(<>
-     {txt('✦ Bu Gece Gökyüzü Görülür mü?',19,true)}
-     {viewing.length?viewing.map(window=><View key={window.time} style={[styles.forecast,{borderColor:p.line}]}><View style={{flex:1}}>{txt(new Date(window.time+'Z').toLocaleDateString('tr-TR',{weekday:'short',day:'numeric',month:'short',timeZone:'UTC'})+' · '+time(window.time),14,true)}{txt('Bulut %'+num(window.cloud)+' · Yağış %'+num(window.rain)+' · Görüş '+(window.visibility/1000).toFixed(1)+' km',11,false,true)}</View>{txt('%'+window.score,20,true)}</View>):txt(weather?'Bulut, görüş veya gece saatleri için yeterli tahmin bulunamadı.':'Hava tahmini yükleniyor.',13,false,true)}
+  if(!voiceEnabled){Alert.alert('Ses kapal…4273 tokens truncated…e={{flex:1}}>{txt(new Date(window.time+'Z').toLocaleDateString('tr-TR',{weekday:'short',day:'numeric',month:'short',timeZone:'UTC'})+' · '+time(window.time),14,true)}{txt('Bulut %'+num(window.cloud)+' · Yağış %'+num(window.rain)+' · Görüş '+(window.visibility/1000).toFixed(1)+' km',11,false,true)}</View>{txt('%'+window.score,20,true)}</View>):txt(weather?'Bulut, görüş veya gece saatleri için yeterli tahmin bulunamadı.':'Hava tahmini yükleniyor.',13,false,true)}
      {txt('Puan tahmini bulut, yağış ve görüşe dayanır; gerçek gözlemi veya ışık kirliliğini ölçmez.',11,false,true)}
      {plan&&txt('En uygun saat: '+time(plan.time)+' · Ay ışığı %'+plan.moonlight+(plan.optical!==null?' · Pus göstergesi '+plan.optical.toFixed(2):''),12,true)}
      {button('✦ Bu gece nereye bakayım?',()=>setScreen('observation'))}
@@ -496,7 +344,7 @@ function Root(){
     {txt('✦ Gökyüzüne Tut',22,true)}
     {place&&LensComponent?<LensComponent latitude={place.latitude} longitude={place.longitude} place={place.name} dark={dark}/>:txt(lensError||'Konum ve kamera görünümü hazırlanıyor.',14)}
   </>)}
-  {screen==='cards'&&panel(<CardReadings p={p}/>)}
+  {screen==='cards'&&panel(<CardReadings p={p} playAudio={async(deck,spread,cards)=>{if(!voiceEnabled)throw new Error('Sesli rehber ayarlarda kapalı.');const token=++voiceRequestId.current;player.pause();const uri=await getCardAudio(deck,spread,cards);if(token!==voiceRequestId.current)return;await setAudioModeAsync({playsInSilentMode:true});player.replace({uri});player.play();}}/>)}
   {screen==='compass'&&panel(<Compass p={p} targets={plan?.targets}/>)}
   {screen==='observation'&&<>{panel(<>
     {txt('✦ Bu Gece Nereye Bakayım?',22,true)}
