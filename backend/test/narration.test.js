@@ -35,6 +35,17 @@ test('uses bounded on-device forecast when upstream rate limits the server',asyn
  assert.match(output.text,/Şemsiyeni/);
  await assert.rejects(narration('weather',{...input,weatherSnapshot:{...input.weatherSnapshot,temp:'injected'}},new Date(),async()=>({ok:false,status:429})),{status:503});
 });
+test('recent validated weather avoids a second network request before speech',async()=>{
+ const now=new Date('2026-09-28T10:00:00Z');
+ const snapshot={temp:22,feels:23,wind:12,code:61,min:18,max:25,rain:70,sunrise:'2026-09-28T06:50',sunset:'2026-09-28T18:52',observedAt:now.getTime()-3*60_000};
+ let calls=0;
+ const input={latitude:36.9,longitude:30.7,place:'Antalya',weatherSnapshot:snapshot};
+ const result=await narration('weather',input,now,async()=>{calls++;throw new Error('Should not fetch again');});
+ assert.equal(calls,0);
+ assert.match(result.text,/yüzde 70/);
+ await narration('weather',{...input,weatherSnapshot:{...snapshot,observedAt:now.getTime()-20*60_000}},now,async()=>{calls++;return {ok:true,json:async()=>({current:{temperature_2m:10,apparent_temperature:9,weather_code:3,wind_speed_10m:12},daily:{time:['2026-09-28'],temperature_2m_min:[7],temperature_2m_max:[12],precipitation_probability_max:[3],sunrise:['2026-09-28T06:50'],sunset:['2026-09-28T18:52']}})};});
+ assert.equal(calls,1);
+});
 test('narration preferences change content, pacing, and cache identity',async()=>{
  const date=new Date('2026-09-27T07:00:00Z');
  const full=await narration('astrology',{sign:'Koç'},date);
