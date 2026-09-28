@@ -15,6 +15,8 @@ import { skyViewingWindows, moonCalendar } from './skyDiscovery';
 import {observationPlan,skyEvents,type AirForecast} from './observationPlan';
 import { CardReadings } from './CardReadings';
 import { ActivityPlanner } from './ActivityPlanner';
+import { SkyEvents } from './SkyEvents';
+import {rainWindows,upcomingSignTransitions,localForecastTime} from './skyInsights';
 import { Compass } from './Compass';
 import { MoonDisc, SkyAtmosphere, SunDisc, ZodiacWheel } from './CelestialVisuals';
 import { dailyNotificationEnabled, setDailyNotification, stopDailyNotification, scheduleWeatherAlerts, stopWeatherAlerts, notifyGpsUpdated } from './notifications';
@@ -289,6 +291,8 @@ function Root(){
  const p=dark?PALETTE.night:PALETTE.day;
  const current=weather?.current,daily=weather?.daily;
  const forecastHours=weather?.hourly?.time.map((date,i)=>({date,instant:Date.parse(date+'Z')-(weather.utc_offset_seconds??0)*1000,rain:weather.hourly.precipitation_probability[i],temp:weather.hourly.temperature_2m[i],code:weather.hourly.weather_code[i]})).filter(h=>Number.isFinite(h.instant)&&h.instant>=now-60*60_000).slice(0,12)??[];
+ const rainPeriods=weather?.hourly?rainWindows(weather.hourly.time,weather.hourly.precipitation_probability,weather.utc_offset_seconds??0,now):[];
+ const transitions=useMemo(()=>upcomingSignTransitions(now),[new Date(now).toDateString()]);
  const viewing=weather?.hourly?skyViewingWindows(weather.hourly,weather.utc_offset_seconds??0,now,set,rise):[];
  const plan=place&&weather?.hourly?observationPlan(weather.hourly,weather.utc_offset_seconds??0,place.latitude,place.longitude,now,set,rise,air??undefined):null;
  const events=useMemo(()=>skyEvents(now),[new Date(now).toDateString()]);
@@ -456,6 +460,12 @@ function Root(){
       {txt(nextRain?'Yağış ihtimali '+time(nextRain.date)+' civarında %'+num(nextRain.rain)+'.':'Önümüzdeki 12 saatte yüksek yağış olasılığı görünmüyor.',12,false,true)}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{marginTop:12}} contentContainerStyle={{gap:8}}>{forecastHours.map((h,i)=><View key={h.date} style={[styles.hourTile,{backgroundColor:p.input,borderColor:p.line}]}><Text style={{color:p.text,fontWeight:'700'}}>{i===0?'Şimdi':time(h.date)}</Text><Text style={{fontSize:22,marginVertical:5}}>{symbol(h.code,dark)}</Text><Text style={{color:p.text}}>{num(h.temp)}°</Text><Text style={{color:p.sub,fontSize:11}}>☂ %{num(h.rain)}</Text></View>)}</ScrollView>
     </>,{marginTop:14})}
+    {panel(<>
+      {txt('☂ Yağış Pencereleri',19,true)}
+      {txt('Önümüzdeki 36 saatte saatlik yağış ihtimalinin %50 ve üstüne çıktığı aralıklar. Yağışın kesin başlayıp biteceği saatler değildir.',12,false,true)}
+      {rainPeriods.length?rainPeriods.map(period=><View key={period.start} style={[styles.forecast,{borderColor:p.line}]}><Text style={{fontSize:24}}>☂</Text><View style={{flex:1}}>{txt(localForecastTime(period.start,weather?.utc_offset_seconds??0)+' – '+localForecastTime(period.end,weather?.utc_offset_seconds??0),12,true)}{txt('En yüksek yağış ihtimali %'+num(period.peak)+' · tahmin aralığı',11,false,true)}</View></View>):txt(weather?'Önümüzdeki 36 saatte %50 eşiğini aşan saat görünmüyor. Düşük olasılık sıfır yağış demek değildir.':'Saatlik tahmin yükleniyor.',13,false,true)}
+      {button('Saatlik tahmini yenile',()=>locationMode==='gps'?void locate(true):place?void load(place,'city'):void locate(true),true)}
+    </>,{marginTop:15})}
     {panel(<>{txt('Önümüzdeki günler',19,true)}{daily.time.slice(1,5).map((d,i)=><View key={d} style={[styles.forecast,{borderColor:p.line}]}><Text style={{fontSize:23}}>{symbol(daily.weather_code[i+1],dark)}</Text><View style={{flex:1}}>{txt(new Date(d+'T12:00:00').toLocaleDateString('tr-TR',{weekday:'long',day:'numeric',month:'long'}),13,true)}{txt(label(daily.weather_code[i+1])+' · Yağış %'+num(daily.precipitation_probability_max[i+1]),11,false,true)}</View>{txt(num(daily.temperature_2m_min[i+1])+'° / '+num(daily.temperature_2m_max[i+1])+'°',12,true)}</View>)}</>,{marginTop:15})}
    </>}
    {panel(<>
@@ -498,6 +508,9 @@ function Root(){
           {selectedPlanet===body.name&&txt('Ekliptik boylam: '+body.longitude.toFixed(2)+'°. Bu astronomik koordinattır; görünürlük hava koşullarına bağlıdır.',12)}
         </View>{txt(selectedPlanet===body.name?'⌄':'›',22,true)}
       </Pressable>)}
+      {txt('✦ Önümüzdeki Burç Geçişleri',19,true)}
+      {txt('Gezegenlerin tropikal zodyakta bölüm değiştirdiği hesaplanan zamanlar. Kişisel etkileri ölçülmez veya öngörülmez.',12,false,true)}
+      {transitions.length?transitions.map(item=><View key={item.name+item.instant} style={[styles.forecast,{borderColor:p.line}]}><Text style={{fontSize:24,color:p.accent}}>{item.icon}</Text><View style={{flex:1}}>{txt(item.name+' · '+item.from+' → '+item.to,15,true)}{txt(new Date(item.instant).toLocaleString('tr-TR',{day:'numeric',month:'long',hour:'2-digit',minute:'2-digit'}),12,false,true)}</View></View>):txt('Önümüzdeki 14 günde listelenen gezegenler için geçiş bulunmadı.',12,false,true)}
       {button('🔄 Konumları güncelle',()=>setNow(Date.now()),true)}
       {button('☾ Ay takvimini aç',()=>setScreen('moon'),true)}
       {button('✧ Gök olayları takvimi',()=>setScreen('events'),true)}
@@ -535,11 +548,7 @@ function Root(){
     {plan?.pm25!==null&&plan?.pm25!==undefined&&txt('PM2.5: '+plan.pm25.toFixed(1)+' µg/m³',12)}
     {txt('Hava kalitesi ölçüsü ve pus tahmini farklı verilerdir. Kaynak: Open-Meteo / CAMS.',11,false,true)}
   </>,{marginTop:15})}</>}
-  {screen==='events'&&panel(<>
-    {txt('✧ Gök Olayları Takvimi',22,true)}
-    {txt('Ay evreleri hesaplanır; meteor geceleri 2026–2027 American Meteor Society takvimindeki beklenen zirvelerdir. Görünürlük bulunduğun yere ve havaya bağlıdır.',12,false,true)}
-    {events.slice(0,18).map(event=><View key={event.id} style={[styles.forecast,{borderColor:p.line}]}><Text style={{fontSize:26,color:p.accent}}>{event.title.includes('Ay')?'☾':'✦'}</Text><View style={{flex:1}}>{txt(event.title,15,true)}{txt(new Date(event.instant).toLocaleString('tr-TR',{day:'numeric',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'}),12,false,true)}{txt(event.detail+' Kaynak: '+event.source,11,false,true)}</View></View>)}
-  </>)}
+  {screen==='events'&&panel(<SkyEvents p={p} events={events} hourly={weather?.hourly} offsetSeconds={weather?.utc_offset_seconds??0}/>)}
   {screen==='zodiac'&&<>
     {panel(<>
       {txt('✧ Burç Çarkı',24,true)}
@@ -555,7 +564,7 @@ function Root(){
       <View style={{marginTop:12}}>{txt(symbolicReading(sign,astronomy),15)}</View>
       {button(voiceLoading==='astrology'?'⏳ Ses hazırlanıyor…':activeVoice==='astrology'?'■ Durdur':'▶ Astroloji yorumunu dinle',()=>void playVoice('astrology'))}
       {voiceLoading==='astrology'&&<ActivityIndicator color={p.accent}/>}
-      {button('🪐 Gezegen konumlarını gör',()=>setScreen('sky'),true)}
+      {button('🪐 Gezegen konumlarını ve burç geçişlerini gör',()=>setScreen('sky'),true)}
       <View style={{marginTop:10}}>{txt('Astrolojik semboller bilimsel kişisel öngörü değildir.',11,false,true)}</View>
     </>,{marginTop:15})}
   </>}
