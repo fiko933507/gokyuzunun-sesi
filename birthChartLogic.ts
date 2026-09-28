@@ -1,4 +1,4 @@
-import * as Astronomy from 'astronomy-engine';
+﻿import * as Astronomy from 'astronomy-engine';
 import {SIGNS,skyAt} from './astronomy';
 export type BirthCity={name:string;country?:string;latitude:number;longitude:number;timezone:string};
 function formatParts(instant:number,timezone:string){
@@ -9,14 +9,14 @@ function formatParts(instant:number,timezone:string){
 export function birthInstant(day:string,clock:string,timezone:string){
  if(!/^\d{4}-\d{2}-\d{2}$/.test(day)||!/^([01]\d|2[0-3]):[0-5]\d$/.test(clock))throw new Error('Tarihi YYYY-AA-GG, saati SS:DD olarak gir.');
  const local=Date.parse(day+'T'+clock+':00Z');
- if(!Number.isFinite(local)||new Date(local).toISOString().slice(0,10)!==day||local<Date.parse('1900-01-01T00:00:00Z')||local>Date.now())throw new Error('Geçerli bir geçmiş tarih gir.');
- try{new Intl.DateTimeFormat('en-GB',{timeZone:timezone});}catch{throw new Error('Şehrin saat dilimi bulunamadı.');}
+ if(!Number.isFinite(local)||new Date(local).toISOString().slice(0,10)!==day||local<Date.parse('1900-01-01T00:00:00Z')||local>Date.now())throw new Error('Ge├ğerli bir ge├ğmi┼ş tarih gir.');
+ try{new Intl.DateTimeFormat('en-GB',{timeZone:timezone});}catch{throw new Error('┼Şehrin saat dilimi bulunamad─▒.');}
  let guess=local;
  for(let i=0;i<5;i++){
   const displayed=Date.parse(formatParts(guess,timezone)+':00Z');
   guess+=local-displayed;
  }
- if(formatParts(guess,timezone)!==day+'T'+clock)throw new Error('Bu saat, seçilen yerde saat değişimi nedeniyle mevcut değil. Başka bir saat gir.');
+ if(formatParts(guess,timezone)!==day+'T'+clock)throw new Error('Bu saat, se├ğilen yerde saat de─şi┼şimi nedeniyle mevcut de─şil. Ba┼şka bir saat gir.');
  return guess;
 }
 /** Apparent ecliptic/equator horizon intersection on the eastern side. */
