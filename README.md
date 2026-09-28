@@ -7,6 +7,9 @@ Gündüz açık ve gece lacivert-mor atmosferde çalışan Türkçe gökyüzü u
 - Saatlik sıcaklık, yağış olasılığı ve hava simgesi; yaklaşan yağış saati ve günlük gökyüzü özeti
 - Bu gece gökyüzü gözlemi: saatlik bulutluluk, yağış ve görüş verileriyle üç uygun saat (tahmin puanı)
 - Bana Uygun Saat: yürüyüş, gökyüzü fotoğrafı veya yıldız gözlemi için önümüzdeki 36 saatin tahmininden üç ayrı zaman önerisi; gerekçe ve yaklaşık uygunluk puanı, sistem paylaşımı ve seçilen saatten 30 dakika önce yerel hatırlatma. Tahmin ve puanlar kesin güvenlik garantisi değildir.
+- Gök Olayları Takvimi: Ay evreleri ve listelenen meteor zirvesi geceleri için etkinlik başına yerel bildirim; en fazla 16 takip, isteğe bağlı paylaşım ve saatlik tahmin varsa yağış/bulut ön izlemesi. Uzak tarihler için henüz hava tahmini sunulmaz.
+- Hava durumu: saatlik tahminlerden önümüzdeki 36 saatte yağış ihtimalinin %50 eşiğini aştığı zaman pencereleri, en yüksek olasılık ve tek dokunuşla tahmin yenileme. Zamanlar yağışın kesin başlangıcı veya bitişi değildir.
+- Astroloji: önümüzdeki 14 gün için astronomik gezegen koordinatlarından hesaplanan tropikal burç geçişleri; sembolik yorumlar kişisel etkileri kanıtlamaz.
 - Önümüzdeki 21 günün Ay takvimi ve konuma göre gezegen yönlerini gösteren kamera/pusula görünümü
 - Günlüğe kamerayla çekilmiş fotoğraf ekleme; fotoğraf cihazın uygulama klasöründe tutulur
 - Hava ve Ay bilgilerini görsel kart olarak telefonun paylaşım menüsüne gönderme
