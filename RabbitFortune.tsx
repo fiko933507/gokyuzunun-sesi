@@ -91,7 +91,7 @@ export function RabbitFortune({p,onJournal,playAudio}:{p:Palette;onJournal:(text
     <Text style={{fontSize:95,lineHeight:110}}>🐇</Text>
     <Text style={{position:'absolute',left:39,top:-8,fontSize:39}}>{character==='Bilge Tavşan'?'🎓':character==='Romantik Tavşan'?'🎀':'🎉'}</Text>
    </Animated.View>
-   {phase!=='spin'&&<Animated.View style={{position:'absolute',left:65,top:0,transform:[{translateX:paper.interpolate({inputRange:[0,1],outputRange:[0,22]})},{translateY:paper.interpolate({inputRange:[0,1],outputRange:[-65,89]})},{rotate:paper.interpolate({inputRange:[0,1],outputRange:['-15deg','8deg']})}]}}><Text style={{fontSize:51}}>{phase==='idle'?'✉️':'📜'}</Text></Animated.View>}
+   {phase!=='spin'&&<Animated.View style={{position:'absolute',left:112,top:0,transform:[{translateY:paper.interpolate({inputRange:[0,1],outputRange:[-65,85]})},{rotate:paper.interpolate({inputRange:[0,1],outputRange:['-15deg','8deg']})}]}}><Text style={{fontSize:51}}>{phase==='idle'?'✉️':'📜'}</Text></Animated.View>}
   </View>
   {phase==='draw'&&<Text style={{color:p.sub,textAlign:'center',marginBottom:12}}>Not tavşanın patisine iniyor…</Text>}
   <Pressable accessibilityRole="button" accessibilityLabel="Tavşanlı şans çarkını çevir" disabled={spinning} onPress={spin} style={{backgroundColor:p.accent,borderRadius:15,padding:16,alignItems:'center',opacity:spinning?.6:1}}><Text style={{fontSize:16,fontWeight:'800',color:p.button}}>{spinning?'Çark dönüyor…':'✦ Çarkı çevir'}</Text></Pressable>
