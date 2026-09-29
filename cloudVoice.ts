@@ -4,8 +4,18 @@ import { fetch as expoFetch } from 'expo/fetch';
 import type { VoiceProfile } from './voiceConfig';
 
 const API = 'https://gokyuzunun-sesi.onrender.com';
+function explainVoiceError(error:unknown):Error{
+ const message=error instanceof Error?error.message:'';
+ if(/fetch failed|network request failed|unknownhostexception|unable to resolve host/i.test(message))
+  return new Error('Ses sunucusuna ulaşılamadı. İnternet bağlantını kontrol edip biraz sonra yeniden dene.');
+ return error instanceof Error?error:new Error('Ses servisine bağlanılamadı.');
+}
+async function voiceFetch(path:string,body:unknown){
+ try{return await expoFetch(API+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});}
+ catch(error){throw explainVoiceError(error);}
+}
 export async function getRabbitAudio(index:number):Promise<string>{
- const response=await expoFetch(API+'/api/rabbit-audio',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({index})});
+ const response=await voiceFetch('/api/rabbit-audio',{index});
  if(!response.ok)throw new Error(response.status===404?'Ses servisi henüz güncellenmedi.':response.status===409?'Kadın sesi doğrulanamadı.':response.status===402?'Ses sağlayıcısının kredisi tükendi.':response.status===429?'Ses üretim sınırına ulaşıldı.':'Tavşanın sesi alınamadı.');
  if(!(response.headers.get('content-type')||'').includes('audio/mpeg'))throw new Error('Beklenmeyen ses yanıtı.');
  const bytes=await response.bytes();if(bytes.length<128||bytes.length>5_000_000)throw new Error('Ses boyutu geçersiz.');
@@ -37,10 +47,7 @@ export async function getVoiceAudio(input:VoiceRequest):Promise<string>{
  // Do not reuse a device MP3 after the voice profile changes on the server.
  // Previously cached male recordings must never bypass server-side validation.
  const file=new File(Paths.cache,filename(input).replace('.mp3','-'+Date.now()+'.mp3'));
- const response=await expoFetch(API+'/api/narration',{
-  method:'POST',headers:{'Content-Type':'application/json'},
-  body:JSON.stringify(input),
- });
+ const response=await voiceFetch('/api/narration',input);
  if(!response.ok){
   if(response.status===409)throw new Error('Seçili sunucu sesi kadın sesi olarak doğrulanamadı. Render ayarlarında kayıtlı kadın ses kimliğini güncelle.');
   if(response.status===402)throw new Error('ElevenLabs planı veya kredisi bu sesi kullanmaya izin vermiyor.');
@@ -57,7 +64,7 @@ export async function getVoiceAudio(input:VoiceRequest):Promise<string>{
 }
 export type ObservationAudioRequest={place:string;latitude:number;longitude:number;instant:number;offsetSeconds:number;score:number;cloud:number;rain:number;targets:{name:string;azimuth:number;altitude:number}[]};
 export async function getObservationAudio(input:ObservationAudioRequest):Promise<string>{
- const response=await expoFetch(API+'/api/observation-audio',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(input)});
+ const response=await voiceFetch('/api/observation-audio',input);
  if(!response.ok)throw new Error(response.status===409?'Astroloji için kayıtlı ses kadın sesi olarak doğrulanamadı.':response.status===429?'Ses sınırına ulaşıldı.':'Gözlem seslendirmesi şu anda kullanılamıyor (HTTP '+response.status+').');
  if(!(response.headers.get('content-type')||'').includes('audio/mpeg'))throw new Error('Beklenmeyen ses yanıtı.');
  const bytes=await response.bytes();if(bytes.length<128||bytes.length>5_000_000)throw new Error('Ses boyutu geçersiz.');
@@ -65,7 +72,7 @@ export async function getObservationAudio(input:ObservationAudioRequest):Promise
 }
 
 export async function getCardAudio(deck:string,spread:'daily'|'three',cards:string[]):Promise<string>{
- const response=await expoFetch(API+'/api/card-reading-audio',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({deck,spread,cards})});
+ const response=await voiceFetch('/api/card-reading-audio',{deck,spread,cards});
  if(!response.ok)throw new Error(response.status===409?'Kadın sesi doğrulanamadı.':response.status===402?'Ses sağlayıcısının kredisi tükendi.':response.status===429?'Ses üretim sınırına ulaşıldı.':'Kart sesi alınamadı (HTTP '+response.status+').');
  if(!(response.headers.get('content-type')||'').includes('audio/mpeg'))throw new Error('Beklenmeyen ses yanıtı.');
  const bytes=await response.bytes();if(bytes.length<128||bytes.length>5_000_000)throw new Error('Ses boyutu geçersiz.');
@@ -73,7 +80,7 @@ export async function getCardAudio(deck:string,spread:'daily'|'three',cards:stri
 }
 
 export async function getDailyBriefAudio(input:{latitude:number;longitude:number;place:string;weatherSnapshot:WeatherSnapshot;sign:string;duration:'brief'|'full';pace:'calm'|'normal'}):Promise<string>{
- const response=await expoFetch(API+'/api/daily-brief-audio',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(input)});
+ const response=await voiceFetch('/api/daily-brief-audio',input);
  if(!response.ok)throw new Error(response.status===409?'Kadın sesi doğrulanamadı.':response.status===402?'Ses sağlayıcısının kredisi tükendi.':response.status===429?'Günlük ses üretim sınırına ulaşıldı.':'Günlük özet sesi alınamadı (HTTP '+response.status+').');
  if(!(response.headers.get('content-type')||'').includes('audio/mpeg'))throw new Error('Beklenmeyen ses yanıtı.');
  const bytes=await response.bytes();if(bytes.length<128||bytes.length>5_000_000)throw new Error('Ses boyutu geçersiz.');
